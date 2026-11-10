@@ -8,21 +8,34 @@ interface LayoutProps {
   title?: string;
   /** Route the back button goes to; no back button when omitted. */
   back?: string;
+  /** Back button that runs an action (e.g. save a draft) instead of a plain link. */
+  onBack?: () => void;
   children?: ReactNode;
 }
 
-export default function Layout({ title, back, children }: LayoutProps) {
+export default function Layout({ title, back, onBack, children }: LayoutProps) {
   const { t } = useTranslation();
+  const backContent = (
+    <>
+      <span aria-hidden="true">←</span>
+      <span className="app-header__back-label">{t('common.back')}</span>
+    </>
+  );
 
   return (
     <>
       <header className="app-header">
         <div className="container app-header__inner">
-          {back && (
-            <Link to={back} className="btn app-header__back">
-              <span aria-hidden="true">←</span>
-              <span className="app-header__back-label">{t('common.back')}</span>
-            </Link>
+          {onBack ? (
+            <button type="button" className="btn app-header__back" onClick={onBack}>
+              {backContent}
+            </button>
+          ) : (
+            back && (
+              <Link to={back} className="btn app-header__back">
+                {backContent}
+              </Link>
+            )
           )}
           <img
             className="app-header__logo"

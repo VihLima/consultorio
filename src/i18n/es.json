@@ -99,7 +99,10 @@
     "status": {
       "active": "Activo",
       "archived": "Archivado"
-    }
+    },
+    "uploadWaiting": "En espera",
+    "uploadInProgress": "Subiendo…",
+    "saved": "Datos guardados."
   },
   "patients": {
     "title": "Pacientes",

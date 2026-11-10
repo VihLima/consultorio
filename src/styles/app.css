@@ -298,6 +298,96 @@ a {
   color: var(--danger);
 }
 
+/* Whole row is the tap target (list rows that open a page). */
+.list > li.list-row {
+  padding: 0;
+}
+
+.list-link {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--tap);
+  padding: 8px var(--gap);
+  color: inherit;
+  text-decoration: none;
+}
+
+.list-link__main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- Attachments ---------- */
+.field-label {
+  font-weight: 600;
+}
+
+.file-list > li {
+  flex-wrap: wrap;
+}
+
+.file-thumb {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.file-thumb--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-size: 1.5rem;
+}
+
+.file-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.file-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.file-picker {
+  position: relative;
+  align-self: flex-start;
+}
+
+.file-picker:focus-within {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* Indeterminate indicator while a file uploads (supabase-js gives no byte progress). */
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--border);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 3s;
+  }
+}
+
 /* ---------- Home grid: 1 column, 2 at ≥640px, 3 at ≥900px ---------- */
 .home-grid {
   display: grid;

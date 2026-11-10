@@ -3,9 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Layout from '../components/Layout';
 import { useAuth } from '../auth/AuthProvider';
+import { listActivePatients } from '../data/patients';
 import { closeShift, getOpenShift, openShift } from '../data/shifts';
 import { formatDate, formatTime, isStaleShift } from '../lib/dates';
-import type { Shift } from '../lib/types';
+import type { Patient, Shift } from '../lib/types';
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -197,12 +198,67 @@ export default function Home() {
           </button>
         </nav>
 
-        {/* Filled with the active (draft) consultations in Task 6. */}
-        <section className="stack" aria-labelledby="in-progress-title">
-          <h2 id="in-progress-title">{t('home.inProgress')}</h2>
-          <p className="empty">{t('home.inProgressEmpty')}</p>
-        </section>
+        <InProgress />
       </div>
     </Layout>
+  );
+}
+
+type ActivePatient = Patient & { consultation_id: string };
+
+/** Patients with a consultation in progress (draft); tapping one resumes it. */
+function InProgress() {
+  const { t } = useTranslation();
+  const [patients, setPatients] = useState<ActivePatient[]>([]);
+  const [loadState, setLoadState] = useState<LoadState>('loading');
+
+  const load = useCallback(async (isCurrent: () => boolean = () => true) => {
+    setLoadState('loading');
+    try {
+      const active = await listActivePatients();
+      if (!isCurrent()) return;
+      setPatients(active);
+      setLoadState('ready');
+    } catch {
+      if (isCurrent()) setLoadState('error');
+    }
+  }, []);
+
+  useEffect(() => {
+    let current = true;
+    void load(() => current);
+    return () => {
+      current = false;
+    };
+  }, [load]);
+
+  return (
+    <section className="stack" aria-labelledby="in-progress-title">
+      <h2 id="in-progress-title">{t('home.inProgress')}</h2>
+      {loadState === 'loading' && <p className="muted">{t('common.loading')}</p>}
+      {loadState === 'error' && (
+        <div className="stack">
+          <p className="field-error">{t('errors.loadFailed')}</p>
+          <button type="button" className="btn" onClick={() => void load()}>
+            {t('common.retry')}
+          </button>
+        </div>
+      )}
+      {loadState === 'ready' && patients.length === 0 && (
+        <p className="empty">{t('home.inProgressEmpty')}</p>
+      )}
+      {loadState === 'ready' && patients.length > 0 && (
+        <ul className="list">
+          {patients.map((patient) => (
+            <li key={patient.consultation_id} className="list-row">
+              <Link to={`/paciente/${patient.id}`} className="list-link">
+                <span className="list-link__main">{patient.full_name}</span>
+                <span className="badge">{t('home.resume')}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

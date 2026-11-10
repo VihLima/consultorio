@@ -42,3 +42,12 @@ export function formatTime(iso: string): string {
   const p = parts(timeFormat, iso);
   return `${p.hour}:${p.minute}`;
 }
+
+/**
+ * Date-only "aaaa-mm-dd" (e.g. `patients.birth_date`) → "dd/mm/aaaa".
+ * No Date object: parsing it as UTC midnight would show the previous day in Asunción.
+ */
+export function formatDateOnly(ymd: string): string {
+  const [year, month, day] = ymd.split('-');
+  return `${day}/${month}/${year}`;
+}
