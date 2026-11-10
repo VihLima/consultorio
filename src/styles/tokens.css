@@ -1,0 +1,21 @@
+:root {
+  /* Brand: magenta sampled from the logo. */
+  --brand: #D6186F;
+  --brand-dark: #A8105A;
+  --brand-soft: #FCE7F1;
+
+  --bg: #FFF8FB;
+  --surface: #FFFFFF;
+  --text: #2B2A2E;
+  --muted: #66646C;
+  --border: #EADCE3;
+  --danger: #C0262D;
+  --danger-soft: #FDECEC;
+
+  --radius: 12px;
+  --tap: 56px;
+  --gap: 16px;
+  --content-max: 960px;
+
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
