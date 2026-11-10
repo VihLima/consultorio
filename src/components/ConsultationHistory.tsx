@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { listClosedConsultations, type ClosedConsultation } from '../data/consultations';
-import { getSignedUrl, listFiles } from '../data/files';
+import { listFiles } from '../data/files';
 import { formatDate } from '../lib/dates';
 import { formatPyg } from '../lib/money';
 import type { ConsultationFile } from '../lib/types';
@@ -107,25 +107,17 @@ export default function ConsultationHistory({ patientId }: { patientId: string }
   );
 }
 
-/** Files of a finished consultation; each opens its signed URL in a new tab. */
+/** Files of a finished consultation; each opens in a new tab (signed URL created on tap). */
 function HistoryFiles({ consultationId }: { consultationId: string }) {
   const { t } = useTranslation();
-  const [files, setFiles] = useState<Array<{ file: ConsultationFile; url: string }> | null>(null);
+  const [files, setFiles] = useState<ConsultationFile[] | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let current = true;
     listFiles(consultationId)
-      .then((stored) =>
-        Promise.all(
-          stored.map(async (file) => ({
-            file,
-            url: await getSignedUrl(file.storage_path).catch(() => ''),
-          })),
-        ),
-      )
-      .then((withUrls) => {
-        if (current) setFiles(withUrls);
+      .then((stored) => {
+        if (current) setFiles(stored);
       })
       .catch(() => {
         if (current) setFailed(true);
@@ -140,10 +132,10 @@ function HistoryFiles({ consultationId }: { consultationId: string }) {
   if (files.length === 0) return <p className="muted">{t('patient.filesEmpty')}</p>;
   return (
     <ul className="list file-list" aria-label={t('patient.files')}>
-      {files.map(({ file, url }) => (
+      {files.map((file) => (
         <li key={file.id}>
-          <FilePreview file={file} url={url || undefined} />
-          <FileLink file={file} url={url || undefined} label={t('patient.openFile')} />
+          <FilePreview file={file} />
+          <FileLink file={file} />
         </li>
       ))}
     </ul>

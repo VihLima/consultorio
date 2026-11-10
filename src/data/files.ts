@@ -4,7 +4,11 @@ import type { Consultation, ConsultationFile } from '../lib/types';
 
 const BUCKET = 'patient-files';
 const FILE_COLUMNS = 'id, consultation_id, storage_path, file_name, mime_type, size_bytes';
-/** Signed URLs are valid for 10 minutes. */
+/**
+ * Signed URLs are valid for 10 minutes, so they are created when needed: a
+ * thumbnail when it is shown (and again if it fails to load), a file link
+ * when it is tapped.
+ */
 const SIGNED_URL_SECONDS = 600;
 
 async function currentUserId(): Promise<string> {

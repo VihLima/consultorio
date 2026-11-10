@@ -1,8 +1,22 @@
+import type { ConsultationFile } from './types';
+
 /** 10 MB, the same limit as the `patient-files` bucket and `consultation_files.size_bytes`. */
 export const MAX_FILE_BYTES = 10485760;
 
-/** A single upload that takes longer than this is reported as failed. */
-export const UPLOAD_TIMEOUT_MS = 60000;
+/**
+ * How long a single upload may take before it is reported as failed: 60 s
+ * plus 30 s per MB, so a 10 MB file on a slow connection gets 6 minutes.
+ */
+export function uploadTimeoutMs(bytes: number): number {
+  return 60000 + Math.ceil((30000 * bytes) / 1048576);
+}
+
+const TIMEOUT = 'timeout';
+
+/** True for the rejection of `withTimeout` (the wait ended, the work may still finish). */
+export function isTimeoutError(error: unknown): boolean {
+  return error instanceof Error && error.message === TIMEOUT;
+}
 
 /**
  * Settles like `promise`, or rejects with Error('timeout') after `ms`.
@@ -10,7 +24,7 @@ export const UPLOAD_TIMEOUT_MS = 60000;
  */
 export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('timeout')), ms);
+    const timer = setTimeout(() => reject(new Error(TIMEOUT)), ms);
     promise.then(
       (value) => {
         clearTimeout(timer);
@@ -22,6 +36,23 @@ export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
       },
     );
   });
+}
+
+/**
+ * After an upload timed out: the stored row for that file, if it arrived
+ * anyway — same name and size, and not one of the files already shown.
+ */
+export function findArrivedFile(
+  stored: ConsultationFile[],
+  shownIds: Set<string>,
+  file: { name: string; size: number },
+): ConsultationFile | null {
+  return (
+    stored.find(
+      (row) =>
+        !shownIds.has(row.id) && row.file_name === file.name && Number(row.size_bytes) === file.size,
+    ) ?? null
+  );
 }
 
 /** What the file picker accepts: images (camera on phones) and PDF. */

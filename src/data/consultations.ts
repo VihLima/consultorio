@@ -64,9 +64,20 @@ export async function startConsultation(patientId: string): Promise<Consultation
   return data as Consultation;
 }
 
+/**
+ * Saves the clinical history of an open consultation. A closed one is refused
+ * by the `consultations_guard` trigger (`consultation_closed`). If no row was
+ * updated at all (not visible to this user, or gone), that is reported as
+ * `consultation_not_open` — never as a successful save.
+ */
 export async function saveConsultationDraft(id: string, clinical_history: string): Promise<void> {
-  const { error } = await supabase.from('consultations').update({ clinical_history }).eq('id', id);
+  const { data, error } = await supabase
+    .from('consultations')
+    .update({ clinical_history })
+    .eq('id', id)
+    .select('id');
   if (error) throw error;
+  if (!data || data.length === 0) throw { message: 'consultation_not_open' };
 }
 
 /** Closes the consultation in the open shift (RPC); errors keep the database message. */

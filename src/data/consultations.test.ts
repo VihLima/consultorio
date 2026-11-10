@@ -11,6 +11,7 @@ const {
   listShiftIncomes,
   listShiftSummaries,
   reactivatePatient,
+  saveConsultationDraft,
   startConsultation,
 } = await import('./consultations');
 
@@ -39,6 +40,28 @@ describe('startConsultation', () => {
     responses.push({ data: OPEN, error: null });
     await expect(startConsultation('p1')).resolves.toEqual(OPEN);
     expect(calls).toContain('eq(["status","open"])');
+  });
+});
+
+describe('saveConsultationDraft', () => {
+  it('updates the text and asks for the updated row back', async () => {
+    responses.push({ data: [{ id: 'c1' }], error: null });
+    await saveConsultationDraft('c1', 'texto');
+    expect(calls).toContain('update([{"clinical_history":"texto"}])');
+    expect(calls).toContain('eq(["id","c1"])');
+    expect(calls).toContain('select(["id"])');
+  });
+
+  it('rethrows the trigger error for a closed consultation', async () => {
+    const failure = { code: 'P0001', message: 'consultation_closed' };
+    responses.push({ data: null, error: failure });
+    await expect(saveConsultationDraft('c1', 'texto')).rejects.toBe(failure);
+  });
+
+  it('treats 0 updated rows as not open instead of a silent success', async () => {
+    responses.push({ data: [], error: null });
+    const error = await saveConsultationDraft('c1', 'texto').catch((e: unknown) => e);
+    expect(hasDbMessage(error, 'consultation_not_open')).toBe(true);
   });
 });
 

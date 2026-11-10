@@ -412,6 +412,23 @@ a {
   overflow-wrap: anywhere;
 }
 
+/* A button that looks like a link (opens a file; the URL is created on tap). */
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand-dark);
+  text-align: left;
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.link-button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
 .file-actions {
   display: flex;
   gap: 8px;

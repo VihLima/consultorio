@@ -21,11 +21,13 @@ import {
   updatePatient,
   type PatientInput,
 } from '../data/patients';
+import { listFiles } from '../data/files';
 import { getOpenShift, openShift } from '../data/shifts';
 import { draftStore, type Draft } from '../lib/draftStore';
 import { formatPyg, parsePyg } from '../lib/money';
 import { normalizeCedula } from '../lib/patients';
 import { closedOutcome } from '../lib/closedOutcome';
+import { nothingToKeep, unnamedBack } from '../lib/formExit';
 import { pickDraft } from '../lib/pickDraft';
 import type { Consultation, Patient } from '../lib/types';
 import { useSubmitOnce } from '../lib/useSubmitOnce';
@@ -106,6 +108,8 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
   const [uploading, setUploading] = useState(false);
   /** A `draft:new` found on /paciente/novo, waiting for keep / discard. */
   const [pendingNewDraft, setPendingNewDraft] = useState<Draft | null>(null);
+  /** Volver on an unnamed new form with clinical text: name it or discard it explicitly. */
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   // Latest values for async flows that outlive a render (uploads, saves, page hide).
   const patientRef = useRef<Patient | null>(null);
@@ -404,19 +408,26 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
     }
   });
 
+  const backExit = showConsultation ? '/inicio' : '/pacientes';
+
   /** Back: keeps the consultation as a server draft (patient stays Active). */
   const goBack = useSubmitOnce(async () => {
     setFormError(null);
     setSaved(false);
-    const exitTo = showConsultation ? '/inicio' : '/pacientes';
+    setConfirmDiscard(false);
+    const exitTo = backExit;
     if (fullName.trim() === '') {
-      if (!patientRef.current) {
-        // Deliberate exit from an unnamed new form: nothing to keep.
+      const action = unnamedBack(patientRef.current !== null, history);
+      if (action === 'leave') {
+        // Deliberate exit from an unnamed new form without clinical text: nothing to keep.
         finish(null);
         navigate(exitTo);
         return;
       }
+      // Clinical text is never thrown away silently (e.g. a recovered draft):
+      // name it, or discard it explicitly.
       validateName();
+      if (action === 'confirm-discard') setConfirmDiscard(true);
       return;
     }
     let open: Consultation | null = consultationRef.current;
@@ -438,7 +449,10 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
     }
   });
 
-  /** "Open existing patient" (duplicate cédula): save what this form holds, then go. */
+  /**
+   * "Open existing patient" (duplicate cédula): save what this form holds, then go.
+   * Nothing is created on this path: a patient not created yet is left uncreated.
+   */
   const openDuplicate = useSubmitOnce(async () => {
     if (!duplicate) return;
     const target = `/paciente/${duplicate.id}`;
@@ -451,6 +465,23 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
     }
     const open = consultationRef.current;
     try {
+      if (open && startedNew.current && history.trim() === '' && amount.trim() === '') {
+        // Created by this form before the cédula was typed (e.g. by an
+        // attachment whose upload then failed) and still empty: nothing to
+        // save, just go. The patient row itself stays (nothing is ever deleted).
+        const stored = await listFiles(open.id).catch(() => null);
+        const state = {
+          history,
+          amount,
+          serverText: serverText.current,
+          storedFiles: stored?.length ?? null,
+        };
+        if (nothingToKeep(state)) {
+          finish(open.id);
+          navigate(target);
+          return;
+        }
+      }
       if (open) {
         await saveConsultationDraft(open.id, history);
         afterServerSave(open.id, history);
@@ -462,6 +493,21 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
       setFormError('errors.saveFailed');
     }
   });
+
+  /** Explicit choice after Volver on an unnamed new form: the clinical text is thrown away. */
+  function discardAndExit() {
+    finish(null);
+    navigate(backExit);
+  }
+
+  /**
+   * Explicit choice after "already closed with other content": leave without
+   * saving. The local draft is kept (written now, and again on unmount).
+   */
+  function leaveWithoutSaving() {
+    writeLocalDraft();
+    navigate('/inicio');
+  }
 
   /** Saves only the fixed data (patient without an open consultation). */
   const savePatientOnly = useSubmitOnce(async () => {
@@ -657,6 +703,7 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
               onChange={(e) => {
                 edit(setFullName)(e.target.value);
                 if (fieldErrors.name) setFieldErrors((prev) => ({ ...prev, name: undefined }));
+                setConfirmDiscard(false);
               }}
             />
             {fieldErrors.name && (
@@ -774,10 +821,25 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
           </div>
         )}
 
+        {confirmDiscard && (
+          <div className="alert stack" role="alert">
+            <p>{t('patient.unnamedHistory')}</p>
+            <button type="button" className="btn btn-danger" disabled={busy} onClick={discardAndExit}>
+              {t('patient.discardAndExit')}
+            </button>
+          </div>
+        )}
+
         {formError && (
           <p className="alert alert-danger" role="alert">
             {t(formError)}
           </p>
+        )}
+
+        {formError === 'patient.alreadyClosed' && (
+          <button type="button" className="btn" disabled={busy} onClick={leaveWithoutSaving}>
+            {t('patient.leaveWithoutSaving')}
+          </button>
         )}
 
         {saved && (

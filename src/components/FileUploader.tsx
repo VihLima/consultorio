@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { getSignedUrl, listFiles, removeFile, uploadFile } from '../data/files';
 import {
   ACCEPTED_FILES,
-  UPLOAD_TIMEOUT_MS,
+  findArrivedFile,
   isImage,
+  isTimeoutError,
+  uploadTimeoutMs,
   validateFile,
   withTimeout,
 } from '../lib/files';
@@ -46,8 +48,12 @@ export default function FileUploader({
 }: FileUploaderProps) {
   const { t } = useTranslation();
   const [files, setFiles] = useState<ConsultationFile[]>([]);
-  const [urls, setUrls] = useState<Record<string, string>>({});
+  /** The files shown, also updated right away when a file is added (the upload loop reads it). */
+  const filesRef = useRef<ConsultationFile[]>(files);
+  filesRef.current = files;
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const queueRef = useRef(queue);
+  queueRef.current = queue;
   const [listError, setListError] = useState(false);
   const [removeError, setRemoveError] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
@@ -93,25 +99,6 @@ export default function FileUploader({
     };
   }, [consultationId]);
 
-  // Signed URLs (thumbnails and links) for files that do not have one yet.
-  useEffect(() => {
-    const missing = files.filter((f) => !(f.id in urls));
-    if (missing.length === 0) return;
-    let current = true;
-    void Promise.all(
-      missing.map((f) =>
-        getSignedUrl(f.storage_path)
-          .then((url) => [f.id, url] as const)
-          .catch(() => [f.id, ''] as const),
-      ),
-    ).then((entries) => {
-      if (current) setUrls((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
-    });
-    return () => {
-      current = false;
-    };
-  }, [files, urls]);
-
   const busy = queue.some((item) => item.state !== 'error');
   useEffect(() => {
     onBusyChange?.(busy);
@@ -127,6 +114,43 @@ export default function FileUploader({
       prev.map((item) =>
         keys.has(item.key) ? { ...item, state: 'error', errorKey, retryable: true } : item,
       ),
+    );
+  }
+
+  /** Shows a stored file of `consultationId` (if the form still shows it) and drops its queue item. */
+  function showStored(consultationId: string, key: number, stored: ConsultationFile) {
+    const shown = consultationIdRef.current;
+    if (!alive.current || (shown !== null && shown !== consultationId)) return;
+    filesRef.current = mergeById(filesRef.current, [stored]);
+    setFiles((prev) => mergeById(prev, [stored]));
+    setQueue((prev) => prev.filter((q) => q.key !== key));
+  }
+
+  /**
+   * After a timeout the request may have reached the server anyway: if the
+   * file is in the consultation's list now, it is shown as stored (a retry
+   * would duplicate it). Otherwise it is shown as failed, and if the request
+   * still finishes later, the file then replaces the failed item.
+   */
+  async function handleTimeout(target: Consultation, item: QueueItem, upload: Promise<ConsultationFile>) {
+    const shownIds = () => new Set(filesRef.current.map((f) => f.id));
+    const arrived = await listFiles(target.id)
+      .then((stored) => findArrivedFile(stored, shownIds(), item.file))
+      .catch(() => null);
+    if (!alive.current) return;
+    if (arrived) {
+      showStored(target.id, item.key, arrived);
+      return;
+    }
+    failItems([item], 'errors.uploadFailed');
+    upload.then(
+      (stored) => {
+        // The file is on the server: show it, unless a retry of it is already
+        // under way (that upload will show its own copy).
+        const retrying = queueRef.current.some((q) => q.key === item.key && q.state !== 'error');
+        if (!retrying) showStored(target.id, item.key, stored);
+      },
+      () => {},
     );
   }
 
@@ -156,15 +180,17 @@ export default function FileUploader({
         return;
       }
       updateItem(item.key, { state: 'uploading', errorKey: undefined });
+      const upload = uploadFile(target, item.file);
       try {
-        // A hung request must not keep the form busy forever: after 60 s the
-        // file is shown as failed (and can be retried).
-        const stored = await withTimeout(uploadFile(target, item.file), UPLOAD_TIMEOUT_MS);
+        // A hung request must not keep the form busy forever: after the
+        // timeout (scaled with the size) the wait ends — see handleTimeout.
+        const stored = await withTimeout(upload, uploadTimeoutMs(item.file.size));
         if (!alive.current) return;
-        setFiles((prev) => mergeById(prev, [stored]));
-        setQueue((prev) => prev.filter((q) => q.key !== item.key));
-      } catch {
-        if (alive.current) failItems([item], 'errors.uploadFailed');
+        showStored(target.id, item.key, stored);
+      } catch (error) {
+        if (!alive.current) return;
+        if (isTimeoutError(error)) await handleTimeout(target, item, upload);
+        else failItems([item], 'errors.uploadFailed');
       }
     }
   }
@@ -247,8 +273,8 @@ export default function FileUploader({
         <ul className="list file-list" aria-labelledby="files-label">
           {files.map((file) => (
             <li key={file.id}>
-              <FilePreview file={file} url={urls[file.id]} />
-              <FileLink file={file} url={urls[file.id]} label={t('patient.openFile')} />
+              <FilePreview file={file} />
+              <FileLink file={file} />
               <button
                 type="button"
                 className="btn btn-danger"
@@ -314,38 +340,109 @@ export default function FileUploader({
   );
 }
 
-/** Thumbnail for images, icon for PDF. */
-export function FilePreview({ file, url }: { file: ConsultationFile; url?: string }) {
-  if (isImage(file.mime_type) && url) {
-    return <img className="file-thumb" src={url} alt="" width={56} height={56} loading="lazy" />;
+/**
+ * Thumbnail for images (signed URL created when shown; if the image fails to
+ * load — e.g. the URL expired while the page stayed open — a fresh URL is
+ * tried once, then the icon is shown), icon for PDF.
+ */
+export function FilePreview({ file }: { file: ConsultationFile }) {
+  const image = isImage(file.mime_type);
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const refreshed = useRef(false);
+
+  useEffect(() => {
+    if (!image) return;
+    let current = true;
+    getSignedUrl(file.storage_path)
+      .then((signed) => {
+        if (current) setUrl(signed);
+      })
+      .catch(() => {
+        if (current) setFailed(true);
+      });
+    return () => {
+      current = false;
+    };
+  }, [image, file.storage_path]);
+
+  function handleError() {
+    if (refreshed.current) {
+      setFailed(true);
+      return;
+    }
+    refreshed.current = true;
+    getSignedUrl(file.storage_path).then(setUrl, () => setFailed(true));
+  }
+
+  if (image && url && !failed) {
+    return (
+      <img
+        className="file-thumb"
+        src={url}
+        alt=""
+        width={56}
+        height={56}
+        loading="lazy"
+        onError={handleError}
+      />
+    );
   }
   return (
     <span className="file-thumb file-thumb--icon" aria-hidden="true">
-      {isImage(file.mime_type) ? '🖼' : '📄'}
+      {image ? '🖼' : '📄'}
     </span>
   );
 }
 
-/** File name opening the signed URL in a new tab (plain text until the URL is ready). */
-export function FileLink({
-  file,
-  url,
-  label,
-}: {
-  file: ConsultationFile;
-  url?: string;
-  label: string;
-}) {
-  if (!url) return <span className="file-name">{file.file_name}</span>;
+/**
+ * File name that opens the file in a new tab. The signed URL is created on
+ * the tap (signed URLs expire, the page may have been open for hours); the
+ * tab is opened first, inside the tap, so the browser does not block it as
+ * a pop-up, and pointed at the file once the URL is ready.
+ */
+export function FileLink({ file }: { file: ConsultationFile }) {
+  const { t } = useTranslation();
+  const [opening, setOpening] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  async function open() {
+    setFailed(false);
+    setOpening(true);
+    const tab = window.open('', '_blank');
+    try {
+      const url = await getSignedUrl(file.storage_path);
+      if (tab) {
+        tab.opener = null;
+        tab.location.href = url;
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    } catch {
+      tab?.close();
+      setFailed(true);
+    } finally {
+      setOpening(false);
+    }
+  }
+
   return (
-    <a
-      className="file-name"
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      title={label}
-    >
-      {file.file_name}
-    </a>
+    <span className="file-name">
+      <button
+        type="button"
+        className="link-button"
+        title={t('patient.openFile')}
+        disabled={opening}
+        onClick={() => void open()}
+      >
+        {file.file_name}
+      </button>
+      {failed && (
+        <>
+          <br />
+          <span className="field-error">{t('errors.loadFailed')}</span>
+        </>
+      )}
+    </span>
   );
 }
