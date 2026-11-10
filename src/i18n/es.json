@@ -116,6 +116,7 @@
     "noResults": "Ningún paciente coincide con la búsqueda.",
     "archivedTitle": "Pacientes archivados",
     "archivedEmpty": "No hay pacientes archivados.",
+    "archivedTruncated": "Se muestran los primeros {{count}} pacientes archivados. Use la búsqueda para encontrar a los demás.",
     "reactivate": "Reactivar"
   },
   "finances": {

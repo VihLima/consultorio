@@ -4,7 +4,12 @@ import { useTranslation } from 'react-i18next';
 import Layout from '../components/Layout';
 import StatusBadge from '../components/StatusBadge';
 import { reactivatePatient } from '../data/consultations';
-import { listArchivedPatients, searchPatients, type PatientWithStatus } from '../data/patients';
+import {
+  ARCHIVED_LIMIT,
+  listArchivedPatients,
+  searchPatients,
+  type PatientWithStatus,
+} from '../data/patients';
 import { openShift } from '../data/shifts';
 import { formatDateOnly } from '../lib/dates';
 import { normalizeSearch } from '../lib/patients';
@@ -34,6 +39,7 @@ export default function Patients() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PatientWithStatus[]>([]);
   const [archived, setArchived] = useState<Patient[]>([]);
+  const [archivedTruncated, setArchivedTruncated] = useState(false);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [reloadToken, setReloadToken] = useState(0);
   const [reactivating, setReactivating] = useState<string | null>(null);
@@ -55,8 +61,10 @@ export default function Patients() {
       ? searchPatients(query).then((found) => {
           if (current) setResults(found);
         })
-      : listArchivedPatients().then((list) => {
-          if (current) setArchived(list);
+      : listArchivedPatients().then(({ patients, truncated }) => {
+          if (!current) return;
+          setArchived(patients);
+          setArchivedTruncated(truncated);
         });
     request
       .then(() => {
@@ -195,6 +203,11 @@ export default function Patients() {
                 </li>
               ))}
             </ul>
+          )}
+          {loadState === 'ready' && !searching && archivedTruncated && (
+            <p className="muted" role="status">
+              {t('patients.archivedTruncated', { count: ARCHIVED_LIMIT })}
+            </p>
           )}
         </section>
       </div>

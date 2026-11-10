@@ -3,8 +3,14 @@ import { calls, fakeSupabase, resetFake, responses } from './testBuilder';
 
 vi.mock('../lib/supabase', () => ({ supabase: fakeSupabase }));
 
-const { createPatient, findPatientByCedula, listActivePatients, listArchivedPatients, searchPatients } =
-  await import('./patients');
+const {
+  ARCHIVED_LIMIT,
+  createPatient,
+  findPatientByCedula,
+  listActivePatients,
+  listArchivedPatients,
+  searchPatients,
+} = await import('./patients');
 
 const PATIENT = { id: 'p1', full_name: 'Ana', birth_date: null, cedula: '1.234.567' };
 
@@ -15,6 +21,12 @@ describe('findPatientByCedula', () => {
     responses.push({ data: PATIENT, error: null });
     await expect(findPatientByCedula(' 1.234.567 ')).resolves.toEqual(PATIENT);
     expect(calls).toContain('eq(["cedula_norm","1234567"])');
+  });
+
+  it('uppercases letters, as the database column does', async () => {
+    responses.push({ data: null, error: null });
+    await expect(findPatientByCedula('ab-123')).resolves.toBeNull();
+    expect(calls).toContain('eq(["cedula_norm","AB123"])');
   });
 
   it('returns null without querying when the cédula is empty', async () => {
@@ -53,7 +65,7 @@ describe('searchPatients', () => {
       { id: 'p2', full_name: 'Anabel', birth_date: null, cedula: null, status: 'archived' },
     ]);
     // pattern %an\%a% (JSON-encoded in the recorded call)
-    expect(calls).toContain('ilike(["full_name","%an\\\\%a%"])');
+    expect(calls).toContain('ilike(["full_name_search","%an\\\\%a%"])');
     expect(calls).toContain('eq(["consultations.status","open"])');
     expect(calls).toContain('limit([50])');
     expect(calls.filter((c) => c.startsWith('from('))).toHaveLength(1);
@@ -67,6 +79,19 @@ describe('searchPatients', () => {
     expect(calls).toContain('ilike(["cedula_norm","1234%"])');
   });
 
+  it('searches the accent-free name column with the normalized text', async () => {
+    responses.push({ data: [], error: null });
+    await searchPatients('  MARÍA Pérez ');
+    expect(calls).toContain('ilike(["full_name_search","%maria perez%"])');
+  });
+
+  it('matches letters of the cédula uppercased', async () => {
+    responses.push({ data: [], error: null }); // by name
+    responses.push({ data: [], error: null }); // by cédula
+    await searchPatients('ab1');
+    expect(calls).toContain('ilike(["cedula_norm","AB1%"])');
+  });
+
   it('does not query for blank text', async () => {
     await expect(searchPatients('   ')).resolves.toEqual([]);
     expect(calls).toEqual([]);
@@ -74,11 +99,27 @@ describe('searchPatients', () => {
 });
 
 describe('listArchivedPatients', () => {
-  it('keeps patients without an open consultation, alphabetically', async () => {
+  it('keeps patients without an open consultation, alphabetically, at most 200', async () => {
     responses.push({ data: [{ ...PATIENT, consultations: [] }], error: null });
-    await expect(listArchivedPatients()).resolves.toEqual([PATIENT]);
+    await expect(listArchivedPatients()).resolves.toEqual({ patients: [PATIENT], truncated: false });
     expect(calls).toContain('eq(["consultations.status","open"])');
     expect(calls).toContain('is(["consultations",null])');
     expect(calls).toContain('order(["full_name",{"ascending":true}])');
+    // one more than shown, to know whether there are more
+    expect(calls).toContain(`limit([${ARCHIVED_LIMIT + 1}])`);
+    expect(ARCHIVED_LIMIT).toBe(200);
+  });
+
+  it('reports truncation when there are more than the limit', async () => {
+    const rows = Array.from({ length: ARCHIVED_LIMIT + 1 }, (_, i) => ({
+      ...PATIENT,
+      id: `p${i}`,
+      consultations: [],
+    }));
+    responses.push({ data: rows, error: null });
+    const result = await listArchivedPatients();
+    expect(result.truncated).toBe(true);
+    expect(result.patients).toHaveLength(ARCHIVED_LIMIT);
+    expect(result.patients[0]).toEqual({ ...PATIENT, id: 'p0' });
   });
 });

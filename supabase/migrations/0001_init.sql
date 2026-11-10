@@ -31,11 +31,19 @@ create table if not exists public.patients (
   full_name   text not null check (length(trim(full_name)) > 0),
   birth_date  date,
   cedula      text,
-  -- '1.234.567', '1234567' and ' 1 234 567 ' all normalize to '1234567'.
-  -- regexp_replace / coalesce / nullif are immutable, as a stored generated
-  -- column requires.
+  -- '1.234.567', '1234567' and ' 1 234 567 ' all normalize to '1234567';
+  -- letters are uppercased, so 'ab-12' and 'AB12' match too (the frontend's
+  -- normalizeCedula does the same). upper / regexp_replace / coalesce /
+  -- nullif are immutable, as a stored generated column requires.
   cedula_norm text generated always as (
-    nullif(regexp_replace(coalesce(cedula, ''), '[^0-9A-Za-z]', '', 'g'), '')
+    upper(nullif(regexp_replace(coalesce(cedula, ''), '[^0-9A-Za-z]', '', 'g'), ''))
+  ) stored,
+  -- Name for search: lowercase, Spanish/Portuguese accents removed, so
+  -- 'maria' finds 'María'. The two character lists MUST stay identical to
+  -- SEARCH_FOLD_FROM / SEARCH_FOLD_TO in src/lib/patients.ts (normalizeSearch;
+  -- a test compares them). translate / lower are immutable.
+  full_name_search text generated always as (
+    lower(translate(full_name, 'ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÑÇáàâãäéèêëíìîïóòôõöúùûüñç', 'AAAAAEEEEIIIIOOOOOUUUUNCaaaaaeeeeiiiiooooouuuunc'))
   ) stored
 );
 
@@ -90,9 +98,9 @@ create unique index if not exists shifts_one_open
 create unique index if not exists patients_cedula
   on public.patients (user_id, cedula_norm) where cedula_norm is not null;
 
--- Name search.
-create index if not exists patients_full_name_lower
-  on public.patients (lower(full_name));
+-- Name search (accent-insensitive column, see full_name_search).
+create index if not exists patients_full_name_search
+  on public.patients (user_id, full_name_search);
 
 -- At most one open consultation per patient (also protects against a double tap).
 create unique index if not exists consultations_one_open
@@ -203,6 +211,10 @@ begin
   end if;
   if new.patient_id is distinct from old.patient_id then
     raise exception 'consultation_patient_immutable';
+  end if;
+  if new.status = 'closed' and new.shift_id is null then
+    -- closed without a shift: there is no open shift to close it in
+    raise exception 'no_open_shift';
   end if;
   if new.status = 'closed' and not exists (
     select 1 from public.shifts s

@@ -116,6 +116,7 @@
     "noResults": "Nenhum paciente corresponde à busca.",
     "archivedTitle": "Pacientes arquivados",
     "archivedEmpty": "Nenhum paciente arquivado.",
+    "archivedTruncated": "Mostrando os primeiros {{count}} pacientes arquivados. Use a busca para encontrar os demais.",
     "reactivate": "Reativar"
   },
   "finances": {

@@ -97,19 +97,21 @@ function toPatient({ consultations: _open, ...patient }: PatientRow): Patient {
 export type PatientWithStatus = Patient & { status: 'active' | 'archived' };
 
 /**
- * Search by part of the name (`ilike`, accent-sensitive) or by the start of
- * the cédula (`cedula_norm` prefix, only when the text has digits).
- * Merged, alphabetical, at most 50; names starting with the text come first.
+ * Search by part of the name, ignoring case and accents ('maria' finds
+ * 'María': `full_name_search` holds the name folded like `normalizeSearch`),
+ * or by the start of the cédula (`cedula_norm` prefix, only when the text has
+ * digits). Merged, alphabetical, at most 50; names starting with the text come first.
  */
 export async function searchPatients(query: string): Promise<PatientWithStatus[]> {
   const text = query.trim();
   if (text === '') return [];
+  const needle = normalizeSearch(text);
 
   const byName = supabase
     .from('patients')
     .select(WITH_OPEN_CONSULTATION)
     .eq('consultations.status', 'open')
-    .ilike('full_name', `%${escapeLike(text)}%`)
+    .ilike('full_name_search', `%${escapeLike(needle)}%`)
     .order('full_name', { ascending: true })
     .limit(SEARCH_LIMIT);
 
@@ -119,7 +121,7 @@ export async function searchPatients(query: string): Promise<PatientWithStatus[]
         .from('patients')
         .select(WITH_OPEN_CONSULTATION)
         .eq('consultations.status', 'open')
-        // ilike: cédulas may contain letters typed in either case.
+        // Both sides are uppercased already; ilike just keeps it case-proof.
         .ilike('cedula_norm', `${escapeLike(cedula)}%`)
         .order('full_name', { ascending: true })
         .limit(SEARCH_LIMIT)
@@ -132,7 +134,6 @@ export async function searchPatients(query: string): Promise<PatientWithStatus[]
     for (const row of (data ?? []) as unknown as PatientRow[]) rows.set(row.id, row);
   }
 
-  const needle = normalizeSearch(text);
   const startsWith = (row: PatientRow) => normalizeSearch(row.full_name).startsWith(needle);
   return [...rows.values()]
     .sort(
@@ -144,15 +145,27 @@ export async function searchPatients(query: string): Promise<PatientWithStatus[]
     .map((row) => ({ ...toPatient(row), status: patientStatus(row.consultations.length > 0) }));
 }
 
-/** Patients without an open consultation (Archived), alphabetically. */
-export async function listArchivedPatients(): Promise<Patient[]> {
+/** At most this many archived patients are listed; the rest are found by search. */
+export const ARCHIVED_LIMIT = 200;
+
+/**
+ * Patients without an open consultation (Archived), alphabetically, at most
+ * ARCHIVED_LIMIT. `truncated` is true when there are more (one extra row is
+ * requested to know it).
+ */
+export async function listArchivedPatients(): Promise<{ patients: Patient[]; truncated: boolean }> {
   const { data, error } = await supabase
     .from('patients')
     .select(WITH_OPEN_CONSULTATION)
     .eq('consultations.status', 'open')
     // No open consultation left after the embedded filter (anti-join).
     .is('consultations', null)
-    .order('full_name', { ascending: true });
+    .order('full_name', { ascending: true })
+    .limit(ARCHIVED_LIMIT + 1);
   if (error) throw error;
-  return ((data ?? []) as unknown as PatientRow[]).map(toPatient);
+  const rows = (data ?? []) as unknown as PatientRow[];
+  return {
+    patients: rows.slice(0, ARCHIVED_LIMIT).map(toPatient),
+    truncated: rows.length > ARCHIVED_LIMIT,
+  };
 }
