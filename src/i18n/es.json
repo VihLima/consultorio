@@ -22,8 +22,7 @@
     "date": "Fecha",
     "time": "Hora",
     "amount": "Valor",
-    "total": "Total",
-    "comingSoon": "Esta pantalla estará disponible pronto."
+    "total": "Total"
   },
   "cover": {
     "title": "Consultorio Dra. Iachel",
@@ -131,7 +130,8 @@
     "saveExpense": "Guardar egreso",
     "removeExpenseQuestion": "¿Quitar este egreso?",
     "previousShifts": "Turnos anteriores",
-    "previousShiftsEmpty": "Todavía no hay turnos cerrados."
+    "previousShiftsEmpty": "Todavía no hay turnos cerrados.",
+    "amountPositive": "El valor debe ser mayor que 0."
   },
   "errors": {
     "generic": "Ocurrió un error. Intente de nuevo.",

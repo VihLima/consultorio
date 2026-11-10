@@ -107,6 +107,21 @@ create index if not exists expenses_shift_id on public.expenses (shift_id);
 
 
 -- -----------------------------------------------------------------------------
+-- Privileges
+-- Explicit, so the app does not depend on the project's default grants.
+-- Only signed-in users (role authenticated) get table access; RLS below then
+-- limits them to their own rows. DELETE only where a delete policy exists.
+-- -----------------------------------------------------------------------------
+
+grant select, insert, update
+  on public.shifts, public.patients, public.consultations,
+     public.consultation_files, public.expenses
+  to authenticated;
+
+grant delete on public.consultation_files, public.expenses to authenticated;
+
+
+-- -----------------------------------------------------------------------------
 -- Row Level Security
 -- Every row is visible/changeable only by its owner (user_id = auth.uid()).
 -- DELETE policies exist only for expenses and consultation_files; patients,
@@ -163,28 +178,45 @@ $$;
 -- go through RLS like any other query of the user.
 -- -----------------------------------------------------------------------------
 
--- consultations: a closed consultation is read-only; the patient never changes.
--- The open -> closed transition done by close_consultation() passes because
--- OLD.status is still 'open' at that moment; any later update is rejected.
-create or replace function public.consultations_guard_update()
+-- consultations:
+-- * a consultation is always created open (closing goes through
+--   close_consultation(), so income always lands in an open shift);
+-- * a closed consultation is read-only; the patient never changes;
+-- * the open -> closed transition must point at a shift that is still open.
+-- close_consultation() passes: OLD.status is still 'open' at that moment and
+-- it sets shift_id to the caller's open shift. Any later update is rejected.
+create or replace function public.consultations_guard()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 begin
+  if tg_op = 'INSERT' then
+    if new.status is distinct from 'open' then
+      raise exception 'consultation_closed';
+    end if;
+    return new;
+  end if;
+
   if old.status = 'closed' then
     raise exception 'consultation_closed';
   end if;
   if new.patient_id is distinct from old.patient_id then
     raise exception 'consultation_patient_immutable';
   end if;
+  if new.status = 'closed' and not exists (
+    select 1 from public.shifts s
+    where s.id = new.shift_id and s.closed_at is null
+  ) then
+    raise exception 'shift_closed';
+  end if;
   return new;
 end;
 $$;
 
-create or replace trigger consultations_immutable_when_closed
-  before update on public.consultations
-  for each row execute function public.consultations_guard_update();
+create or replace trigger consultations_guard
+  before insert or update on public.consultations
+  for each row execute function public.consultations_guard();
 
 
 -- consultation_files: files of a closed consultation cannot be added, changed
@@ -255,6 +287,7 @@ create or replace trigger expenses_shift_closed_guard
 
 
 -- shifts: once closed, a shift is read-only (closing it is the last update).
+-- The closing time comes from the server clock, whatever the client sent.
 create or replace function public.shifts_guard_update()
 returns trigger
 language plpgsql
@@ -263,6 +296,9 @@ as $$
 begin
   if old.closed_at is not null then
     raise exception 'shift_closed';
+  end if;
+  if new.closed_at is not null then
+    new.closed_at := now();
   end if;
   return new;
 end;

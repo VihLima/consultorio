@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import LoadingScreen from '../components/LoadingScreen';
 import { useAuth } from './AuthProvider';
 
 /**
@@ -11,17 +11,8 @@ import { useAuth } from './AuthProvider';
 export default function RequireAuth({ children }: { children?: ReactNode }) {
   const { session, loading } = useAuth();
   const location = useLocation();
-  const { t } = useTranslation();
 
-  if (loading) {
-    return (
-      <main className="container app-main">
-        <p className="muted" role="status">
-          {t('common.loading')}
-        </p>
-      </main>
-    );
-  }
+  if (loading) return <LoadingScreen />;
 
   if (!session) {
     const from = location.pathname + location.search + location.hash;

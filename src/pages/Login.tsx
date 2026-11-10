@@ -2,12 +2,13 @@ import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Layout from '../components/Layout';
+import LoadingScreen from '../components/LoadingScreen';
 import { useAuth } from '../auth/AuthProvider';
 import { loginDestination } from '../auth/redirect';
 
 export default function Login() {
   const { t } = useTranslation();
-  const { session, signIn } = useAuth();
+  const { session, loading, signIn } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -31,6 +32,8 @@ export default function Login() {
     navigate(destination, { replace: true });
   }
 
+  // Until the stored session is read, show nothing that would flash before a redirect.
+  if (loading) return <LoadingScreen />;
   // Already signed in (e.g. /login opened by hand): skip the form.
   if (session && !submitting) return <Navigate to={destination} replace />;
 

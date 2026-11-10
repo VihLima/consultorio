@@ -1,13 +1,16 @@
 import { Link, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import LoadingScreen from '../components/LoadingScreen';
 import { useAuth } from '../auth/AuthProvider';
 import { HOME_PATH } from '../auth/redirect';
 
 export default function Cover() {
   const { t } = useTranslation();
-  const { session } = useAuth();
+  const { session, loading } = useAuth();
 
+  // Until the stored session is read, show nothing that would flash before a redirect.
+  if (loading) return <LoadingScreen />;
   if (session) return <Navigate to={HOME_PATH} replace />;
 
   return (

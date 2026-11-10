@@ -2,11 +2,12 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthProvider';
 import RequireAuth from './auth/RequireAuth';
 import Cover from './pages/Cover';
+import Finances from './pages/Finances';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import PatientForm from './pages/PatientForm';
 import Patients from './pages/Patients';
-import Placeholder from './pages/Placeholder';
+import ShiftDetail from './pages/ShiftDetail';
 
 export default function App() {
   return (
@@ -20,8 +21,8 @@ export default function App() {
             <Route path="/paciente/novo" element={<PatientForm />} />
             <Route path="/paciente/:id" element={<PatientForm />} />
             <Route path="/pacientes" element={<Patients />} />
-            <Route path="/financas" element={<Placeholder titleKey="finances.title" />} />
-            <Route path="/turnos/:id" element={<Placeholder titleKey="finances.previousShifts" />} />
+            <Route path="/financas" element={<Finances />} />
+            <Route path="/turnos/:id" element={<ShiftDetail />} />
           </Route>
         </Routes>
       </AuthProvider>

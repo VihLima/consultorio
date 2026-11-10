@@ -7,6 +7,8 @@ const {
   closeConsultation,
   hasDbMessage,
   listClosedConsultations,
+  listShiftIncomes,
+  listShiftSummaries,
   reactivatePatient,
   startConsultation,
 } = await import('./consultations');
@@ -73,6 +75,71 @@ describe('listClosedConsultations', () => {
     ]);
     expect(calls).toContain('eq(["status","closed"])');
     expect(calls).toContain('order(["closed_at",{"ascending":false}])');
+  });
+});
+
+describe('listShiftIncomes', () => {
+  it("returns the shift's closed consultations with the patient name, in closing order", async () => {
+    responses.push({
+      data: [
+        { id: 'c1', closed_at: '2026-11-10T13:00:00Z', amount_pyg: 150000, patients: { full_name: 'Ana' } },
+        { id: 'c2', closed_at: '2026-11-10T14:00:00Z', amount_pyg: 0, patients: { full_name: 'Beto' } },
+      ],
+      error: null,
+    });
+    await expect(listShiftIncomes('s1')).resolves.toEqual([
+      { consultation_id: 'c1', patient_name: 'Ana', closed_at: '2026-11-10T13:00:00Z', amount_pyg: 150000 },
+      { consultation_id: 'c2', patient_name: 'Beto', closed_at: '2026-11-10T14:00:00Z', amount_pyg: 0 },
+    ]);
+    expect(calls).toContain('eq(["shift_id","s1"])');
+    expect(calls).toContain('eq(["status","closed"])');
+    expect(calls).toContain('order(["closed_at",{"ascending":true}])');
+  });
+});
+
+describe('listShiftSummaries', () => {
+  it('returns closed shifts, newest first, with income, expense and balance', async () => {
+    responses.push({
+      data: [
+        {
+          id: 's2',
+          opened_at: '2026-11-10T11:00:00Z',
+          closed_at: '2026-11-10T20:00:00Z',
+          consultations: [{ amount_pyg: 150000 }, { amount_pyg: 200000 }],
+          expenses: [{ amount_pyg: 50000 }],
+        },
+        {
+          id: 's1',
+          opened_at: '2026-11-09T11:00:00Z',
+          closed_at: '2026-11-09T20:00:00Z',
+          consultations: [],
+          expenses: [{ amount_pyg: 80000 }],
+        },
+      ],
+      error: null,
+    });
+    await expect(listShiftSummaries()).resolves.toEqual([
+      {
+        id: 's2',
+        opened_at: '2026-11-10T11:00:00Z',
+        closed_at: '2026-11-10T20:00:00Z',
+        income: 350000,
+        expense: 50000,
+        balance: 300000,
+      },
+      {
+        id: 's1',
+        opened_at: '2026-11-09T11:00:00Z',
+        closed_at: '2026-11-09T20:00:00Z',
+        income: 0,
+        expense: 80000,
+        balance: -80000,
+      },
+    ]);
+    // Only closed consultations count as income; only closed shifts are listed.
+    expect(calls).toContain('eq(["consultations.status","closed"])');
+    expect(calls).toContain('not(["closed_at","is",null])');
+    expect(calls).toContain('order(["opened_at",{"ascending":false}])');
   });
 });
 

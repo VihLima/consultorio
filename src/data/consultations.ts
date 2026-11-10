@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
-import type { Consultation } from '../lib/types';
+import { shiftTotals, type ShiftTotals } from '../lib/totals';
+import type { Consultation, Shift } from '../lib/types';
 import { getOpenShift } from './shifts';
 
 export const CONSULTATION_COLUMNS =
@@ -84,6 +85,69 @@ export async function listClosedConsultations(patientId: string): Promise<Closed
   return rows.map(({ consultation_files: files, ...consultation }) => ({
     ...consultation,
     file_count: files[0]?.count ?? 0,
+  }));
+}
+
+export interface ShiftIncome {
+  consultation_id: string;
+  patient_name: string;
+  closed_at: string;
+  amount_pyg: number;
+}
+
+/**
+ * Income of a shift: the consultations finished in it (each consultation has
+ * a single `shift_id`, so it is never counted twice), in closing order.
+ */
+export async function listShiftIncomes(shiftId: string): Promise<ShiftIncome[]> {
+  const { data, error } = await supabase
+    .from('consultations')
+    .select('id, closed_at, amount_pyg, patients (full_name)')
+    .eq('shift_id', shiftId)
+    .eq('status', 'closed')
+    .order('closed_at', { ascending: true });
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as Array<{
+    id: string;
+    closed_at: string;
+    amount_pyg: number;
+    patients: { full_name: string };
+  }>;
+  return rows.map((row) => ({
+    consultation_id: row.id,
+    patient_name: row.patients.full_name,
+    closed_at: row.closed_at,
+    amount_pyg: row.amount_pyg,
+  }));
+}
+
+export type ShiftSummaryRow = Shift & ShiftTotals;
+
+/**
+ * Closed shifts, most recent first, with their totals. One request: the
+ * amounts of the shift's closed consultations and expenses come embedded and
+ * are added up here.
+ */
+export async function listShiftSummaries(): Promise<ShiftSummaryRow[]> {
+  const { data, error } = await supabase
+    .from('shifts')
+    .select('id, opened_at, closed_at, consultations (amount_pyg), expenses (amount_pyg)')
+    .eq('consultations.status', 'closed')
+    .not('closed_at', 'is', null)
+    .order('opened_at', { ascending: false });
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as Array<
+    Shift & {
+      consultations: Array<{ amount_pyg: number }>;
+      expenses: Array<{ amount_pyg: number }>;
+    }
+  >;
+  return rows.map(({ consultations, expenses, ...shift }) => ({
+    ...shift,
+    ...shiftTotals(
+      consultations.map((c) => c.amount_pyg),
+      expenses.map((e) => e.amount_pyg),
+    ),
   }));
 }
 

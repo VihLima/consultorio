@@ -14,6 +14,9 @@ Consultório Dra. Iachel. Faça uma única vez, antes do primeiro uso.
 
 1. No menu lateral, abra **SQL Editor** → **New query**.
 2. Cole todo o conteúdo de `supabase/migrations/0001_init.sql` e clique em **Run**.
+   O SQL Editor pode pedir para confirmar uma "destructive operation" (o script
+   tem comandos `drop policy`, que recriam as regras de segurança): é esperado,
+   confirme.
 3. Deve aparecer "Success. No rows returned".
 
 Isso cria as tabelas (`shifts`, `patients`, `consultations`,

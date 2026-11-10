@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import Layout from '../components/Layout';
 import { useAuth } from '../auth/AuthProvider';
 import { listActivePatients } from '../data/patients';
-import { closeShift, getOpenShift, openShift } from '../data/shifts';
+import { getOpenShift, openShift } from '../data/shifts';
 import { formatDate, formatTime, isStaleShift } from '../lib/dates';
 import type { Patient, Shift } from '../lib/types';
 
@@ -23,7 +23,6 @@ export default function Home() {
   const busyRef = useRef(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [needsShift, setNeedsShift] = useState(false);
-  const [confirmingClose, setConfirmingClose] = useState(false);
 
   const load = useCallback(async (isCurrent: () => boolean = () => true) => {
     setLoadState('loading');
@@ -62,19 +61,17 @@ export default function Home() {
 
   const handleOpenShift = () =>
     run(async () => {
-      setShift(await openShift());
-      setNeedsShift(false);
+      try {
+        setShift(await openShift());
+        setNeedsShift(false);
+      } catch (error) {
+        // The shift may have changed on another device: show what the database has.
+        void load();
+        throw error;
+      }
     });
 
-  // Task 8 replaces this with navigate('/financas?fechar=1') (shift summary);
-  // until then the shift is closed here after a simple confirmation.
-  const handleConfirmClose = () =>
-    run(async () => {
-      if (!shift) return;
-      await closeShift(shift.id);
-      setShift(null);
-      setConfirmingClose(false);
-    });
+  // Closing goes through the summary on /financas?fechar=1 (Finances.tsx).
 
   function handlePatient() {
     if (shift) navigate('/paciente/novo');
@@ -134,30 +131,6 @@ export default function Home() {
           </div>
         )}
 
-        {confirmingClose && shift && (
-          <div className="card stack" role="alertdialog" aria-labelledby="close-shift-question">
-            <p id="close-shift-question">{t('shift.closeQuestion')}</p>
-            <div className="home-grid">
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={busy}
-                onClick={handleConfirmClose}
-              >
-                {t('home.closeShift')}
-              </button>
-              <button
-                type="button"
-                className="btn"
-                disabled={busy}
-                onClick={() => setConfirmingClose(false)}
-              >
-                {t('common.cancel')}
-              </button>
-            </div>
-          </div>
-        )}
-
         {actionError && (
           <p className="alert alert-danger" role="alert">
             {t(actionError)}
@@ -170,7 +143,7 @@ export default function Home() {
               type="button"
               className="btn btn-primary btn-big"
               disabled={busy || !ready}
-              onClick={() => setConfirmingClose(true)}
+              onClick={() => navigate('/financas?fechar=1')}
             >
               {t('home.closeShift')}
             </button>
