@@ -5,9 +5,10 @@ import Layout from '../components/Layout';
 import ShiftSummary from '../components/ShiftSummary';
 import { getShift } from '../data/shifts';
 import { formatDate, formatTime } from '../lib/dates';
+import { isNotFoundError } from '../lib/errors';
 import type { Shift } from '../lib/types';
 
-type LoadState = 'loading' | 'ready' | 'error';
+type LoadState = 'loading' | 'ready' | 'error' | 'not-found';
 
 /** /turnos/:id — a previous shift, read only. */
 export default function ShiftDetail() {
@@ -24,8 +25,8 @@ export default function ShiftDetail() {
         if (!isCurrent()) return;
         setShift(next);
         setLoadState('ready');
-      } catch {
-        if (isCurrent()) setLoadState('error');
+      } catch (error) {
+        if (isCurrent()) setLoadState(isNotFoundError(error) ? 'not-found' : 'error');
       }
     },
     [id],
@@ -46,6 +47,7 @@ export default function ShiftDetail() {
     <Layout title={title} back="/financas">
       <div className="stack">
         {loadState === 'loading' && <p className="muted">{t('common.loading')}</p>}
+        {loadState === 'not-found' && <p className="empty">{t('errors.notFound')}</p>}
         {loadState === 'error' && (
           <div className="stack">
             <p className="field-error">{t('errors.loadFailed')}</p>

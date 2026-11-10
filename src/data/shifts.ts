@@ -44,17 +44,6 @@ export async function closeShift(id: string): Promise<Shift> {
   return data as Shift;
 }
 
-/** Closed shifts, most recent first. */
-export async function listClosedShifts(): Promise<Shift[]> {
-  const { data, error } = await supabase
-    .from('shifts')
-    .select(COLUMNS)
-    .not('closed_at', 'is', null)
-    .order('opened_at', { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as Shift[];
-}
-
 export async function getShift(id: string): Promise<Shift> {
   const { data, error } = await supabase.from('shifts').select(COLUMNS).eq('id', id).single();
   if (error) throw error;

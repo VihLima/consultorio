@@ -8,6 +8,7 @@ import { listExpenses } from '../data/expenses';
 import { listActivePatients } from '../data/patients';
 import { closeShift, getOpenShift } from '../data/shifts';
 import { formatDate, formatTime } from '../lib/dates';
+import { closeShiftErrorKey } from '../lib/errors';
 import { formatPyg } from '../lib/money';
 import { shiftTotals, type ShiftTotals } from '../lib/totals';
 import type { Shift } from '../lib/types';
@@ -196,8 +197,8 @@ function CloseShift({ shift, error, onError }: CloseShiftProps) {
     try {
       await closeShift(shift.id);
       navigate('/inicio', { replace: true });
-    } catch {
-      onError('errors.generic');
+    } catch (error) {
+      onError(closeShiftErrorKey(error));
     }
   });
 
