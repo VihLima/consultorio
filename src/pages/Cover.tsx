@@ -1,9 +1,14 @@
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import { useAuth } from '../auth/AuthProvider';
+import { HOME_PATH } from '../auth/redirect';
 
 export default function Cover() {
   const { t } = useTranslation();
+  const { session } = useAuth();
+
+  if (session) return <Navigate to={HOME_PATH} replace />;
 
   return (
     <div className="cover container">
