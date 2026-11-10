@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { getSignedUrl, listFiles, removeFile, uploadFile } from '../data/files';
 import {
   ACCEPTED_FILES,
+  ARRIVAL_CHECK_TIMEOUT_MS,
   findArrivedFile,
   isImage,
   isTimeoutError,
@@ -142,7 +143,9 @@ export default function FileUploader({
     upload: Promise<ConsultationFile>,
   ) {
     const shownIds = () => new Set(filesRef.current.map((f) => f.id));
-    const arrived = await listFiles(target.id)
+    // Bounded: on a hung connection this request hangs too, and the item
+    // (and every exit of the form) must not stay busy. Failure = not arrived.
+    const arrived = await withTimeout(listFiles(target.id), ARRIVAL_CHECK_TIMEOUT_MS)
       .then((stored) => findArrivedFile(stored, shownIds(), item.file))
       .catch(() => null);
     if (!alive.current) return;

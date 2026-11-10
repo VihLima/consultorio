@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  ARRIVAL_CHECK_TIMEOUT_MS,
   MAX_FILE_BYTES,
   buildStoragePath,
   findArrivedFile,
@@ -85,6 +86,10 @@ describe('withTimeout', () => {
     expect(uploadTimeoutMs(524288)).toBe(75000);
     expect(uploadTimeoutMs(1048576)).toBe(90000);
     expect(uploadTimeoutMs(MAX_FILE_BYTES)).toBe(360000);
+  });
+
+  it('gives the after-timeout file check 15 s', () => {
+    expect(ARRIVAL_CHECK_TIMEOUT_MS).toBe(15000);
   });
 
   it('tells its own timeout apart from other errors', async () => {

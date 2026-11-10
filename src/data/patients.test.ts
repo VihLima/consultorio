@@ -41,6 +41,13 @@ describe('createPatient', () => {
     await createPatient({ full_name: '  Ana ', birth_date: null, cedula: '  ' });
     expect(calls).toContain('insert([{"full_name":"Ana","birth_date":null,"cedula":null}])');
   });
+
+  it('stores the name in NFC, so combining accents fold like precomposed ones', async () => {
+    responses.push({ data: PATIENT, error: null });
+    await createPatient({ full_name: ' Mari\u0301a ', birth_date: null, cedula: null });
+    // 'i' + U+0301 (combining acute) becomes the single character U+00ED.
+    expect(calls).toContain('insert([{"full_name":"Mar\u00eda","birth_date":null,"cedula":null}])');
+  });
 });
 
 describe('listActivePatients', () => {

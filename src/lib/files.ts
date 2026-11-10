@@ -11,6 +11,12 @@ export function uploadTimeoutMs(bytes: number): number {
   return 60000 + Math.ceil((30000 * bytes) / 1048576);
 }
 
+/**
+ * After an upload timed out, the check whether the file arrived anyway gets
+ * this long; on a hung connection it would otherwise hang too.
+ */
+export const ARRIVAL_CHECK_TIMEOUT_MS = 15000;
+
 const TIMEOUT = 'timeout';
 
 /** True for the rejection of `withTimeout` (the wait ended, the work may still finish). */

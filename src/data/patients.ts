@@ -17,7 +17,9 @@ export interface PatientInput {
 function clean(input: PatientInput) {
   const cedula = input.cedula?.trim() ?? '';
   return {
-    full_name: input.full_name.trim(),
+    // NFC: a name typed with combining accents is stored like a precomposed
+    // one, so the full_name_search column folds it like any other.
+    full_name: input.full_name.trim().normalize('NFC'),
     birth_date: input.birth_date || null,
     cedula: cedula === '' ? null : cedula,
   };
