@@ -101,7 +101,12 @@
     },
     "uploadWaiting": "En espera",
     "uploadInProgress": "Subiendo…",
-    "saved": "Datos guardados."
+    "saved": "Datos guardados.",
+    "alreadyClosed": "Esta consulta ya fue finalizada con otro contenido. Sus últimos cambios NO se guardaron; siguen en pantalla.",
+    "newDraftFound": "Hay un borrador sin terminar de un paciente nuevo.",
+    "newDraftUnnamed": "(sin nombre)",
+    "keepDraft": "Recuperar borrador",
+    "discardDraft": "Descartar borrador"
   },
   "patients": {
     "title": "Pacientes",

@@ -25,6 +25,7 @@ import { getOpenShift, openShift } from '../data/shifts';
 import { draftStore, type Draft } from '../lib/draftStore';
 import { formatPyg, parsePyg } from '../lib/money';
 import { normalizeCedula } from '../lib/patients';
+import { closedOutcome } from '../lib/closedOutcome';
 import { pickDraft } from '../lib/pickDraft';
 import type { Consultation, Patient } from '../lib/types';
 import { useSubmitOnce } from '../lib/useSubmitOnce';
@@ -39,6 +40,12 @@ const NO_OPEN_SHIFT = { message: 'no_open_shift' };
 interface FieldErrors {
   name?: string;
   amount?: string;
+}
+
+function hasContent(draft: Draft): boolean {
+  return [draft.full_name, draft.birth_date, draft.cedula, draft.clinical_history, draft.amount].some(
+    (value) => value !== undefined && value.trim() !== '',
+  );
 }
 
 function isDuplicateCedula(error: unknown): boolean {
@@ -97,6 +104,8 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
   const [draftRestored, setDraftRestored] = useState(false);
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
+  /** A `draft:new` found on /paciente/novo, waiting for keep / discard. */
+  const [pendingNewDraft, setPendingNewDraft] = useState<Draft | null>(null);
 
   // Latest values for async flows that outlive a render (uploads, saves, page hide).
   const patientRef = useRef<Patient | null>(null);
@@ -190,18 +199,10 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
         .then((shift) => {
           if (!current) return;
           setShiftMissing(!shift);
+          // A leftover draft is never pre-filled silently: the doctor decides
+          // whether it belongs to this patient (keep) or not (discard).
           const local = draftStore.load(NEW_DRAFT);
-          if (local) {
-            setFullName(local.full_name ?? '');
-            setBirthDate(local.birth_date ?? '');
-            setCedula(local.cedula ?? '');
-            setHistory(local.clinical_history);
-            setAmount(local.amount);
-            setDraftRestored(
-              [local.full_name, local.birth_date, local.cedula, local.clinical_history, local.amount]
-                .some((value) => value !== undefined && value !== ''),
-            );
-          }
+          if (local && hasContent(local)) setPendingNewDraft(local);
           setLoadState('ready');
         })
         .catch(() => {
@@ -333,14 +334,34 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
   }
 
   /**
-   * True when `error` says the consultation is not open and the server confirms
-   * it is closed — e.g. a final save whose response was lost. Nothing is left
-   * to save, so the caller can leave.
+   * Handles a save refused because the consultation is no longer open.
+   * If the server already holds what is on screen (`closedOutcome` 'done',
+   * e.g. our own close whose response was lost), drafts are dropped and
+   * `leave` runs. If it was closed with other content ('lost'), the form and
+   * its local draft stay and the doctor is told the changes were NOT saved.
+   * Returns false when the error is something else (report it as usual).
    */
-  async function isAlreadyClosed(error: unknown, consultationId: string | null): Promise<boolean> {
+  async function handleNotOpen(
+    error: unknown,
+    consultationId: string | null,
+    savedHistory: string,
+    savedAmount: number | null,
+    leave: () => void,
+  ): Promise<boolean> {
     if (!consultationId || !isNotOpen(error)) return false;
     const fresh = await getConsultation(consultationId).catch(() => null);
-    return fresh?.status === 'closed';
+    const outcome = closedOutcome(fresh, savedHistory, savedAmount);
+    if (outcome === 'done') {
+      finish(consultationId);
+      leave();
+      return true;
+    }
+    if (outcome === 'lost') {
+      writeLocalDraft();
+      setFormError('patient.alreadyClosed');
+      return true;
+    }
+    return false;
   }
 
   function validateName(): boolean {
@@ -377,11 +398,8 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
       finish(open.id);
       navigate('/inicio');
     } catch (error) {
-      if (await isAlreadyClosed(error, open?.id ?? null)) {
-        finish(open?.id ?? null);
-        navigate('/inicio');
-        return;
-      }
+      const leave = () => navigate('/inicio');
+      if (await handleNotOpen(error, open?.id ?? null, history, value, leave)) return;
       await reportSaveError(error);
     }
   });
@@ -414,11 +432,8 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
       }
       navigate(exitTo);
     } catch (error) {
-      if (await isAlreadyClosed(error, open?.id ?? null)) {
-        finish(open?.id ?? null);
-        navigate(exitTo);
-        return;
-      }
+      const leave = () => navigate(exitTo);
+      if (await handleNotOpen(error, open?.id ?? null, history, null, leave)) return;
       await reportSaveError(error);
     }
   });
@@ -442,11 +457,8 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
       }
       navigate(target);
     } catch (error) {
-      if (await isAlreadyClosed(error, open?.id ?? null)) {
-        finish(open?.id ?? null);
-        navigate(target);
-        return;
-      }
+      const leave = () => navigate(target);
+      if (await handleNotOpen(error, open?.id ?? null, history, null, leave)) return;
       setFormError('errors.saveFailed');
     }
   });
@@ -555,6 +567,22 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
     );
   }
 
+  function keepNewDraft() {
+    if (!pendingNewDraft) return;
+    setFullName(pendingNewDraft.full_name ?? '');
+    setBirthDate(pendingNewDraft.birth_date ?? '');
+    setCedula(pendingNewDraft.cedula ?? '');
+    setHistory(pendingNewDraft.clinical_history);
+    setAmount(pendingNewDraft.amount);
+    setPendingNewDraft(null);
+    setDraftRestored(true);
+  }
+
+  function discardNewDraft() {
+    draftStore.clear(NEW_DRAFT);
+    setPendingNewDraft(null);
+  }
+
   // No consultation can start without an open shift (spec §7).
   if (!id && shiftMissing) {
     return (
@@ -576,6 +604,33 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
               {t(formError)}
             </p>
           )}
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!id && pendingNewDraft) {
+    const owner = [pendingNewDraft.full_name?.trim(), pendingNewDraft.cedula?.trim()]
+      .filter(Boolean)
+      .join(' · ');
+    return (
+      <Layout title={t('patient.newTitle')} back="/inicio">
+        <div className="alert stack" role="alertdialog" aria-labelledby="new-draft-title">
+          <p id="new-draft-title">{t('patient.newDraftFound')}</p>
+          <p>
+            <strong>{owner || t('patient.newDraftUnnamed')}</strong>
+          </p>
+          {pendingNewDraft.clinical_history.trim() !== '' && (
+            <p className="history-card__preview">{pendingNewDraft.clinical_history}</p>
+          )}
+          <div className="home-grid">
+            <button type="button" className="btn btn-primary" onClick={keepNewDraft}>
+              {t('patient.keepDraft')}
+            </button>
+            <button type="button" className="btn" onClick={discardNewDraft}>
+              {t('patient.discardDraft')}
+            </button>
+          </div>
         </div>
       </Layout>
     );

@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getSignedUrl, listFiles, removeFile, uploadFile } from '../data/files';
-import { ACCEPTED_FILES, isImage, validateFile } from '../lib/files';
+import {
+  ACCEPTED_FILES,
+  UPLOAD_TIMEOUT_MS,
+  isImage,
+  validateFile,
+  withTimeout,
+} from '../lib/files';
 import type { Consultation, ConsultationFile } from '../lib/types';
 
 interface FileUploaderProps {
@@ -151,7 +157,9 @@ export default function FileUploader({
       }
       updateItem(item.key, { state: 'uploading', errorKey: undefined });
       try {
-        const stored = await uploadFile(target, item.file);
+        // A hung request must not keep the form busy forever: after 60 s the
+        // file is shown as failed (and can be retried).
+        const stored = await withTimeout(uploadFile(target, item.file), UPLOAD_TIMEOUT_MS);
         if (!alive.current) return;
         setFiles((prev) => mergeById(prev, [stored]));
         setQueue((prev) => prev.filter((q) => q.key !== item.key));

@@ -101,7 +101,12 @@
     },
     "uploadWaiting": "Aguardando",
     "uploadInProgress": "Enviando…",
-    "saved": "Dados salvos."
+    "saved": "Dados salvos.",
+    "alreadyClosed": "Esta consulta já foi finalizada com outro conteúdo. Suas últimas alterações NÃO foram salvas; continuam na tela.",
+    "newDraftFound": "Há um rascunho não terminado de um paciente novo.",
+    "newDraftUnnamed": "(sem nome)",
+    "keepDraft": "Recuperar rascunho",
+    "discardDraft": "Descartar rascunho"
   },
   "patients": {
     "title": "Pacientes",

@@ -1,6 +1,29 @@
 /** 10 MB, the same limit as the `patient-files` bucket and `consultation_files.size_bytes`. */
 export const MAX_FILE_BYTES = 10485760;
 
+/** A single upload that takes longer than this is reported as failed. */
+export const UPLOAD_TIMEOUT_MS = 60000;
+
+/**
+ * Settles like `promise`, or rejects with Error('timeout') after `ms`.
+ * The underlying work is not cancelled; only the wait ends.
+ */
+export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 /** What the file picker accepts: images (camera on phones) and PDF. */
 export const ACCEPTED_FILES = 'image/*,application/pdf';
 
