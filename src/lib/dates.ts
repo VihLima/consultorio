@@ -26,6 +26,17 @@ export function formatDate(iso: string): string {
   return `${p.day}/${p.month}/${p.year}`;
 }
 
+/** ISO timestamp → sortable "aaaa-mm-dd" of its day in America/Asuncion. */
+function localDayKey(iso: string): string {
+  const p = parts(dateFormat, iso);
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+/** True when a shift opened at `openedAtIso` started on an earlier Asunción day than `nowIso`. */
+export function isStaleShift(openedAtIso: string, nowIso: string): boolean {
+  return localDayKey(openedAtIso) < localDayKey(nowIso);
+}
+
 /** ISO timestamp → "HH:MM" (24 h) in America/Asuncion. */
 export function formatTime(iso: string): string {
   const p = parts(timeFormat, iso);
