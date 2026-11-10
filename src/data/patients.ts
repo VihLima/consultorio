@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { normalizeCedula } from '../lib/patients';
+import { escapeLike, normalizeCedula, normalizeSearch, patientStatus } from '../lib/patients';
 import type { Patient } from '../lib/types';
 
 export const PATIENT_COLUMNS = 'id, full_name, birth_date, cedula';
@@ -78,4 +78,80 @@ export async function listActivePatients(): Promise<Array<Patient & { consultati
   if (error) throw error;
   const rows = (data ?? []) as unknown as Array<{ id: string; patients: Patient }>;
   return rows.map((row) => ({ ...row.patients, consultation_id: row.id }));
+}
+
+const SEARCH_LIMIT = 50;
+
+/**
+ * Patients plus their open consultation (if any): the embedded filter limits
+ * `consultations` to open ones without filtering the patients themselves.
+ */
+const WITH_OPEN_CONSULTATION = `${PATIENT_COLUMNS}, consultations (id)`;
+
+type PatientRow = Patient & { consultations: Array<{ id: string }> };
+
+function toPatient({ consultations: _open, ...patient }: PatientRow): Patient {
+  return patient;
+}
+
+export type PatientWithStatus = Patient & { status: 'active' | 'archived' };
+
+/**
+ * Search by part of the name (`ilike`, accent-sensitive) or by the start of
+ * the cédula (`cedula_norm` prefix, only when the text has digits).
+ * Merged, alphabetical, at most 50; names starting with the text come first.
+ */
+export async function searchPatients(query: string): Promise<PatientWithStatus[]> {
+  const text = query.trim();
+  if (text === '') return [];
+
+  const byName = supabase
+    .from('patients')
+    .select(WITH_OPEN_CONSULTATION)
+    .eq('consultations.status', 'open')
+    .ilike('full_name', `%${escapeLike(text)}%`)
+    .order('full_name', { ascending: true })
+    .limit(SEARCH_LIMIT);
+
+  const cedula = /\d/.test(text) ? normalizeCedula(text) : null;
+  const byCedula = cedula
+    ? supabase
+        .from('patients')
+        .select(WITH_OPEN_CONSULTATION)
+        .eq('consultations.status', 'open')
+        .like('cedula_norm', `${escapeLike(cedula)}%`)
+        .order('full_name', { ascending: true })
+        .limit(SEARCH_LIMIT)
+    : null;
+
+  const results = await Promise.all(byCedula ? [byName, byCedula] : [byName]);
+  const rows = new Map<string, PatientRow>();
+  for (const { data, error } of results) {
+    if (error) throw error;
+    for (const row of (data ?? []) as unknown as PatientRow[]) rows.set(row.id, row);
+  }
+
+  const needle = normalizeSearch(text);
+  const startsWith = (row: PatientRow) => normalizeSearch(row.full_name).startsWith(needle);
+  return [...rows.values()]
+    .sort(
+      (a, b) =>
+        Number(startsWith(b)) - Number(startsWith(a)) ||
+        a.full_name.localeCompare(b.full_name, 'es'),
+    )
+    .slice(0, SEARCH_LIMIT)
+    .map((row) => ({ ...toPatient(row), status: patientStatus(row.consultations.length > 0) }));
+}
+
+/** Patients without an open consultation (Archived), alphabetically. */
+export async function listArchivedPatients(): Promise<Patient[]> {
+  const { data, error } = await supabase
+    .from('patients')
+    .select(WITH_OPEN_CONSULTATION)
+    .eq('consultations.status', 'open')
+    // No open consultation left after the embedded filter (anti-join).
+    .is('consultations', null)
+    .order('full_name', { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as unknown as PatientRow[]).map(toPatient);
 }

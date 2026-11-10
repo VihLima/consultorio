@@ -5,6 +5,7 @@ import Cover from './pages/Cover';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import PatientForm from './pages/PatientForm';
+import Patients from './pages/Patients';
 import Placeholder from './pages/Placeholder';
 
 export default function App() {
@@ -18,7 +19,7 @@ export default function App() {
             <Route path="/inicio" element={<Home />} />
             <Route path="/paciente/novo" element={<PatientForm />} />
             <Route path="/paciente/:id" element={<PatientForm />} />
-            <Route path="/pacientes" element={<Placeholder titleKey="patients.title" />} />
+            <Route path="/pacientes" element={<Patients />} />
             <Route path="/financas" element={<Placeholder titleKey="finances.title" />} />
             <Route path="/turnos/:id" element={<Placeholder titleKey="finances.previousShifts" />} />
           </Route>

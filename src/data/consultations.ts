@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { Consultation } from '../lib/types';
+import { getOpenShift } from './shifts';
 
 export const CONSULTATION_COLUMNS =
   'id, patient_id, shift_id, clinical_history, amount_pyg, status, started_at, closed_at';
@@ -64,4 +65,34 @@ export async function closeConsultation(id: string, amount: number): Promise<voi
     p_amount: amount,
   });
   if (error) throw error;
+}
+
+export type ClosedConsultation = Consultation & { file_count: number };
+
+/** A patient's finished consultations, most recent first, with their number of files. */
+export async function listClosedConsultations(patientId: string): Promise<ClosedConsultation[]> {
+  const { data, error } = await supabase
+    .from('consultations')
+    .select(`${CONSULTATION_COLUMNS}, consultation_files (count)`)
+    .eq('patient_id', patientId)
+    .eq('status', 'closed')
+    .order('closed_at', { ascending: false });
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as Array<
+    Consultation & { consultation_files: Array<{ count: number }> }
+  >;
+  return rows.map(({ consultation_files: files, ...consultation }) => ({
+    ...consultation,
+    file_count: files[0]?.count ?? 0,
+  }));
+}
+
+/**
+ * Reactivation: a new blank consultation for an archived patient. Requires an
+ * open shift — resolves to null (nothing created) when there is none.
+ */
+export async function reactivatePatient(patientId: string): Promise<Consultation | null> {
+  const shift = await getOpenShift();
+  if (!shift) return null;
+  return startConsultation(patientId);
 }

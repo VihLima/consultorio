@@ -319,6 +319,62 @@ a {
   min-width: 0;
 }
 
+.list-link__sub {
+  display: block;
+  font-size: 0.9375rem;
+}
+
+.list-row__action {
+  flex: none;
+  margin-right: var(--gap);
+}
+
+/* ---------- Consultation history ---------- */
+.history-section {
+  margin-top: 32px;
+}
+
+.history-card {
+  padding: 0;
+}
+
+.history-card__toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: var(--gap);
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.history-card__preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: pre-line;
+}
+
+.history-card__body {
+  padding: 0 var(--gap) var(--gap);
+}
+
+.history-card__text {
+  white-space: pre-wrap;
+}
+
 /* ---------- Attachments ---------- */
 .field-label {
   font-weight: 600;

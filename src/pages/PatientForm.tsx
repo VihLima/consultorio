@@ -2,11 +2,13 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEve
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Layout from '../components/Layout';
+import ConsultationHistory from '../components/ConsultationHistory';
 import FileUploader from '../components/FileUploader';
 import {
   closeConsultation,
   getOpenConsultation,
   hasDbMessage,
+  reactivatePatient,
   saveConsultationDraft,
   startConsultation,
 } from '../data/consultations';
@@ -304,6 +306,27 @@ export default function PatientForm() {
     }
   });
 
+  /** Archived patient: new blank consultation (needs an open shift). */
+  const reactivate = useSubmitOnce(async () => {
+    setFormError(null);
+    setNeedsShift(false);
+    setSaved(false);
+    if (!patientRef.current) return;
+    try {
+      const opened = await reactivatePatient(patientRef.current.id);
+      if (!opened) {
+        setNeedsShift(true);
+        return;
+      }
+      touched.current = false;
+      applyConsultation(opened);
+      setHistory(opened.clinical_history);
+      setAmount('');
+    } catch {
+      setFormError('errors.generic');
+    }
+  });
+
   const openShiftNow = useSubmitOnce(async () => {
     try {
       await openShift();
@@ -470,7 +493,17 @@ export default function PatientForm() {
             </div>
           </section>
         ) : (
-          <p className="empty">{t('patient.noOpenConsultation')}</p>
+          <section className="card stack">
+            <p className="muted">{t('patient.noOpenConsultation')}</p>
+            <button
+              type="button"
+              className="btn btn-primary btn-big"
+              disabled={busy || reactivate.busy}
+              onClick={() => void reactivate.run()}
+            >
+              {t('patient.reactivate')}
+            </button>
+          </section>
         )}
 
         {needsShift && (
@@ -517,6 +550,12 @@ export default function PatientForm() {
           </button>
         </div>
       </form>
+
+      {patient && (
+        <div className="history-section">
+          <ConsultationHistory key={patient.id} patientId={patient.id} />
+        </div>
+      )}
     </Layout>
   );
 }
