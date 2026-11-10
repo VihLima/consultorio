@@ -63,7 +63,8 @@ describe('searchPatients', () => {
     responses.push({ data: [], error: null }); // by name
     responses.push({ data: [{ ...PATIENT, consultations: [] }], error: null }); // by cédula
     await expect(searchPatients('1.234')).resolves.toEqual([{ ...PATIENT, status: 'archived' }]);
-    expect(calls).toContain('like(["cedula_norm","1234%"])');
+    expect(calls.some((c) => c.startsWith('like('))).toBe(false);
+    expect(calls).toContain('ilike(["cedula_norm","1234%"])');
   });
 
   it('does not query for blank text', async () => {

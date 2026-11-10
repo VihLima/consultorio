@@ -119,7 +119,8 @@ export async function searchPatients(query: string): Promise<PatientWithStatus[]
         .from('patients')
         .select(WITH_OPEN_CONSULTATION)
         .eq('consultations.status', 'open')
-        .like('cedula_norm', `${escapeLike(cedula)}%`)
+        // ilike: cédulas may contain letters typed in either case.
+        .ilike('cedula_norm', `${escapeLike(cedula)}%`)
         .order('full_name', { ascending: true })
         .limit(SEARCH_LIMIT)
     : null;

@@ -47,12 +47,25 @@ export default function FileUploader({
   const [removing, setRemoving] = useState<string | null>(null);
   const nextKey = useRef(0);
   const processing = useRef(false);
-  const pendingRef = useRef<QueueItem[]>([]);
+  /** Selections (or retries) waiting to be uploaded; each one is uploaded to one target. */
+  const pendingBatches = useRef<QueueItem[][]>([]);
   // The upload loop outlives renders: always call the latest callback.
   const ensureRef = useRef(ensureConsultation);
   ensureRef.current = ensureConsultation;
+  const alive = useRef(true);
 
   const consultationId = consultation?.id ?? null;
+  const consultationIdRef = useRef(consultationId);
+  consultationIdRef.current = consultationId;
+
+  // Stop the upload loop when the form goes away (e.g. another patient is opened).
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      pendingBatches.current = [];
+    };
+  }, []);
 
   // Files already stored for this consultation.
   useEffect(() => {
@@ -102,21 +115,48 @@ export default function FileUploader({
     setQueue((prev) => prev.map((item) => (item.key === key ? { ...item, ...change } : item)));
   }
 
-  /** Uploads pending items one by one; later selections join the same loop. */
-  async function processQueue(items: QueueItem[]) {
-    for (const item of items) {
+  function failItems(items: QueueItem[], errorKey: string) {
+    const keys = new Set(items.map((item) => item.key));
+    setQueue((prev) =>
+      prev.map((item) =>
+        keys.has(item.key) ? { ...item, state: 'error', errorKey, retryable: true } : item,
+      ),
+    );
+  }
+
+  /**
+   * Uploads one selection. The target consultation is resolved once, when the
+   * batch starts, and every file of the batch goes to it; the loop stops if
+   * the component unmounts or the form now shows a different consultation.
+   */
+  async function processBatch(items: QueueItem[]) {
+    let target: Consultation | null;
+    try {
+      target = await ensureRef.current();
+    } catch {
+      if (alive.current) failItems(items, 'errors.uploadFailed');
+      return;
+    }
+    if (!alive.current) return;
+    if (!target) {
+      failItems(items, 'patient.nameRequired');
+      return;
+    }
+    for (const [index, item] of items.entries()) {
+      const shown = consultationIdRef.current;
+      if (!alive.current) return;
+      if (shown !== null && shown !== target.id) {
+        failItems(items.slice(index), 'errors.uploadFailed');
+        return;
+      }
       updateItem(item.key, { state: 'uploading', errorKey: undefined });
       try {
-        const target = await ensureRef.current();
-        if (!target) {
-          updateItem(item.key, { state: 'error', errorKey: 'patient.nameRequired', retryable: true });
-          continue;
-        }
         const stored = await uploadFile(target, item.file);
+        if (!alive.current) return;
         setFiles((prev) => mergeById(prev, [stored]));
         setQueue((prev) => prev.filter((q) => q.key !== item.key));
       } catch {
-        updateItem(item.key, { state: 'error', errorKey: 'errors.uploadFailed', retryable: true });
+        if (alive.current) failItems([item], 'errors.uploadFailed');
       }
     }
   }
@@ -125,10 +165,9 @@ export default function FileUploader({
     if (processing.current) return;
     processing.current = true;
     try {
-      while (pendingRef.current.length > 0) {
-        const batch = pendingRef.current;
-        pendingRef.current = [];
-        await processQueue(batch);
+      while (alive.current && pendingBatches.current.length > 0) {
+        const batch = pendingBatches.current.shift()!;
+        await processBatch(batch);
       }
     } finally {
       processing.current = false;
@@ -136,7 +175,8 @@ export default function FileUploader({
   }
 
   function enqueue(items: QueueItem[]) {
-    pendingRef.current = [...pendingRef.current, ...items];
+    if (items.length === 0) return;
+    pendingBatches.current.push(items);
     void drain();
   }
 

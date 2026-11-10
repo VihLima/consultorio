@@ -5,6 +5,7 @@ vi.mock('../lib/supabase', () => ({ supabase: fakeSupabase }));
 
 const {
   closeConsultation,
+  getConsultation,
   hasDbMessage,
   listClosedConsultations,
   listShiftIncomes,
@@ -155,5 +156,14 @@ describe('reactivatePatient', () => {
     responses.push({ data: OPEN, error: null });
     await expect(reactivatePatient('p1')).resolves.toEqual(OPEN);
     expect(calls).toContain('insert([{"patient_id":"p1"}])');
+  });
+});
+
+describe('getConsultation', () => {
+  it('reads one consultation by id (used after a lost close response)', async () => {
+    const closed = { ...OPEN, status: 'closed' };
+    responses.push({ data: closed, error: null });
+    await expect(getConsultation('c1')).resolves.toEqual(closed);
+    expect(calls).toContain('eq(["id","c1"])');
   });
 });

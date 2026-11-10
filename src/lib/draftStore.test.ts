@@ -23,5 +23,28 @@ describe('draftStore', () => {
     expect(draftStore.load('bad')).toBeNull();
     localStorage.setItem('draft:shape', '{"clinical_history":1}');
     expect(draftStore.load('shape')).toBeNull();
+    localStorage.setItem('draft:base', '{"clinical_history":"a","amount":"","base":1}');
+    expect(draftStore.load('base')).toBeNull();
+  });
+
+  it('keeps the server base text of a consultation draft', () => {
+    draftStore.save('c1', { clinical_history: 'new text', amount: '', base: 'old text' });
+    expect(draftStore.load('c1')).toEqual({
+      clinical_history: 'new text',
+      amount: '',
+      base: 'old text',
+    });
+  });
+
+  it('keeps the fixed data of a new-patient draft', () => {
+    const draft = {
+      clinical_history: 'dolor',
+      amount: '150.000',
+      full_name: 'Ana',
+      birth_date: '1990-05-12',
+      cedula: '1.234.567',
+    };
+    draftStore.save('new', draft);
+    expect(draftStore.load('new')).toEqual(draft);
   });
 });

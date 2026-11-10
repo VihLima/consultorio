@@ -10,10 +10,12 @@ interface LayoutProps {
   back?: string;
   /** Back button that runs an action (e.g. save a draft) instead of a plain link. */
   onBack?: () => void;
+  /** Disables the `onBack` button (e.g. while the page is saving). */
+  backDisabled?: boolean;
   children?: ReactNode;
 }
 
-export default function Layout({ title, back, onBack, children }: LayoutProps) {
+export default function Layout({ title, back, onBack, backDisabled, children }: LayoutProps) {
   const { t } = useTranslation();
   const backContent = (
     <>
@@ -27,7 +29,12 @@ export default function Layout({ title, back, onBack, children }: LayoutProps) {
       <header className="app-header">
         <div className="container app-header__inner">
           {onBack ? (
-            <button type="button" className="btn app-header__back" onClick={onBack}>
+            <button
+              type="button"
+              className="btn app-header__back"
+              disabled={backDisabled}
+              onClick={onBack}
+            >
               {backContent}
             </button>
           ) : (

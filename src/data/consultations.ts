@@ -34,6 +34,16 @@ export async function getOpenConsultation(patientId: string): Promise<Consultati
   return data as Consultation | null;
 }
 
+export async function getConsultation(id: string): Promise<Consultation> {
+  const { data, error } = await supabase
+    .from('consultations')
+    .select(CONSULTATION_COLUMNS)
+    .eq('id', id)
+    .single();
+  if (error) throw error;
+  return data as Consultation;
+}
+
 /**
  * Opens a consultation for the patient. If one is already open (double tap,
  * second device), the unique index rejects the insert and that one is returned.
