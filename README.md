@@ -54,9 +54,21 @@ npm run build     # checagem de tipos + versão de produção na pasta dist
    - em **Redirect URLs**, adicione a mesma URL (e o domínio próprio, se houver).
 6. Abra a URL, entre com o e-mail e a senha da médica e confira a tela inicial.
 
-O arquivo `public/_redirects` faz o Pages devolver o app em qualquer endereço
-(ex.: ao recarregar `/financas`), então não é preciso configurar nada a mais
-para as rotas.
+Rotas como `/financas`: o Pages já devolve o `index.html` para endereços
+desconhecidos quando o projeto não tem uma página `404.html` (comportamento
+padrão para apps de página única); o arquivo `public/_redirects` deixa isso
+explícito. Confira recarregando `/financas` no site publicado (item 6 da
+lista "Primeira execução" no guia do Supabase).
+
+## Antes do uso real
+
+Leia em [docs/setup-supabase.md](docs/setup-supabase.md):
+
+- **Primeira execução — o que conferir** (seção 7): a lista de testes a
+  fazer uma vez, antes do primeiro paciente;
+- **Backups e pausa do projeto** (seção 8): no plano gratuito o projeto pausa
+  após ~7 dias sem uso e não há backups para baixar — escolha o plano Pro ou
+  a rotina de cópia manual descrita lá.
 
 ## Estrutura
 

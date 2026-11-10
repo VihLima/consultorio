@@ -119,3 +119,97 @@ delete from public.shifts;
 
 Pronto: abra o sistema, entre com o e-mail e a senha da médica e use
 normalmente.
+
+## 7. Primeira execução — o que conferir
+
+Antes de atender o primeiro paciente de verdade, confira nesta ordem:
+
+1. **Banco e arquivos.** Rode a migração (seção 2) e as verificações da
+   seção 6. Em **Storage**, confirme que o bucket `patient-files` está
+   **privado**, com limite de **10 MB** e tipos `image/*` e `application/pdf`.
+2. **Abrir turno.** Entre no sistema e toque **Abrir turno** uma vez. Se der
+   erro, a correção é trocar `insert({})` por `insert({ closed_at: null })` na
+   função `openShift` de `src/data/shifts.ts` e publicar de novo.
+3. **Fluxo completo de um paciente.** Toque **Paciente**, crie um paciente
+   novo, anexe uma foto e um PDF, escreva algo na história clínica, informe o
+   valor `150.000` e toque **Guardar y salir**. Em **Finanzas** deve aparecer
+   **₲ 150.000** nos ingresos do turno. Em **Pacientes**, o paciente deve
+   estar na lista de arquivados; toque **Reactivar** e confira que abre uma
+   consulta nova em branco (e as anteriores no histórico, com os arquivos).
+4. **Sem turno aberto.** Feche o turno. Abra um paciente ativo (da lista "En
+   atención") e toque **Guardar y salir**: deve aparecer o aviso com o botão
+   **Abrir turno**. Depois, numa aba que ficou aberta em **Finanzas** de antes
+   do fechamento, tente lançar um egreso: deve aparecer a mensagem de turno
+   fechado (somente leitura) e nada é gravado.
+5. **Separação entre contas.** Crie uma segunda conta em **Authentication** →
+   **Users** → **Add user**, entre com ela e confirme que ela vê **zero**
+   pacientes e zero turnos. Confirme também que um arquivo não abre sem login:
+   o endereço público
+   `https://SEU-PROJETO.supabase.co/storage/v1/object/public/patient-files/<caminho>`
+   deve dar erro (o bucket é privado). Os links que o sistema gera ao tocar no
+   nome do arquivo são assinados e valem só 10 minutos. No fim, apague a conta
+   de teste em **Authentication** → **Users**.
+6. **Cloudflare Pages.** No site publicado, entre em **Finanzas** e recarregue
+   a página (F5 / puxar para baixo no celular): `/financas` deve abrir normalmente,
+   sem "página não encontrada".
+
+## 8. Backups e pausa do projeto
+
+**Isto é importante: o sistema guarda prontuários e finanças.**
+
+No plano gratuito (Free) do Supabase:
+
+- o projeto é **pausado depois de cerca de 7 dias sem uso**. Enquanto estiver
+  pausado, o sistema não funciona (o login e as telas dão erro). Para voltar,
+  entre em <https://supabase.com/dashboard>, abra o projeto e clique em
+  **Restore project**; leva alguns minutos. Os dados não se perdem com a pausa;
+- **não há backups automáticos para baixar**. Se algo der errado no projeto,
+  não existe uma cópia que você possa recuperar sozinha.
+
+Escolha uma das duas opções:
+
+### Opção A — Plano Pro (recomendado)
+
+Em **Organization settings** → **Billing**, mude para o plano **Pro**. Ele
+inclui **backups diários** (restauráveis em **Database** → **Backups**) e o
+projeto **não é pausado**. Mesmo assim, uma cópia própria de vez em quando
+(opção B) não faz mal.
+
+### Opção B — Rotina de cópia manual (plano gratuito)
+
+Faça **pelo menos uma vez por semana** (o uso semanal também evita a pausa) e
+guarde as cópias num lugar seguro e privado (ex.: um disco externo ou uma
+pasta de nuvem com acesso só seu — são dados de pacientes).
+
+1. **Banco de dados** — escolha um dos jeitos:
+   - **Pelo painel (mais simples):** abra **Table Editor**, escolha cada
+     tabela (`patients`, `consultations`, `consultation_files`, `shifts`,
+     `expenses`) e use **Export** → **Export table as CSV**. Guarde os cinco
+     arquivos numa pasta com a data (ex.: `backup-2026-11-17`).
+   - **Com `pg_dump` (cópia completa, restaurável):** em **Project Settings** →
+     **Database** → **Connection string** (ou o botão **Connect** no topo do
+     painel), copie a conexão do modo **Session pooler**. Com o PostgreSQL
+     (versão 17 ou mais nova) instalado no computador, rode:
+
+     ```
+     pg_dump "postgresql://postgres.xxxx:SENHA@aws-0-sa-east-1.pooler.supabase.com:5432/postgres" --schema=public --no-owner --file=backup-2026-11-17.sql
+     ```
+
+     (troque pela sua conexão; a senha é a do banco, criada no passo 1 da
+     seção 1). O arquivo tem as tabelas e os dados. Restaurar a partir dele é
+     uma tarefa técnica (peça ajuda a quem mantém o sistema); o importante é
+     ter a cópia.
+2. **Arquivos (fotos e PDFs)** — em **Storage** → `patient-files`, entre nas
+   pastas e baixe os arquivos (botão **Download**). As pastas seguem
+   `{usuário}/{paciente}/{consulta}/`; baixe a pasta inteira de cada
+   paciente novo desde a última cópia. Com muitos arquivos, a Supabase CLI
+   copia tudo de uma vez (comando ainda marcado como experimental pela
+   Supabase; se mudar, consulte `npx supabase storage cp --help`):
+
+   ```
+   npx supabase login
+   npx supabase link --project-ref SEU-PROJETO
+   npx supabase storage cp -r ss:///patient-files ./backup-2026-11-17/arquivos --experimental
+   ```
+3. Confira que a pasta da cópia tem os cinco CSV (ou o `.sql`) e os arquivos,
+   e anote a data da última cópia.
