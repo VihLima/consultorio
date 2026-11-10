@@ -39,7 +39,7 @@ export default function Login() {
 
   return (
     <Layout title={t('login.title')} back="/">
-      <div className="stack">
+      <div className="stack narrow">
         <form className="card" onSubmit={handleSubmit}>
           <div className="field">
             <label htmlFor="login-email">{t('login.email')}</label>

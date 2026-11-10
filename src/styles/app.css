@@ -140,6 +140,11 @@ a {
   gap: var(--gap);
 }
 
+/* Short forms (login) don't stretch to the full 960px on a computer. */
+.narrow {
+  max-width: 480px;
+}
+
 /* ---------- Buttons ---------- */
 .btn {
   display: inline-flex;
@@ -663,6 +668,7 @@ a {
 .summary-list {
   display: grid;
   gap: 8px;
+  margin: 0;
 }
 
 .summary-list > div {

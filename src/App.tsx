@@ -5,6 +5,7 @@ import Cover from './pages/Cover';
 import Finances from './pages/Finances';
 import Home from './pages/Home';
 import Login from './pages/Login';
+import NotFound from './pages/NotFound';
 import PatientForm from './pages/PatientForm';
 import Patients from './pages/Patients';
 import ShiftDetail from './pages/ShiftDetail';
@@ -24,6 +25,7 @@ export default function App() {
             <Route path="/financas" element={<Finances />} />
             <Route path="/turnos/:id" element={<ShiftDetail />} />
           </Route>
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

@@ -18,4 +18,9 @@ describe('loginDestination', () => {
     expect(loginDestination({ from: '//evil.example' })).toBe('/inicio');
     expect(loginDestination({ from: 42 })).toBe('/inicio');
   });
+
+  it('ignores paths that a router could read as another host (backslash)', () => {
+    expect(loginDestination({ from: '/\\evil.example' })).toBe('/inicio');
+    expect(loginDestination({ from: '\\\\evil.example' })).toBe('/inicio');
+  });
 });
