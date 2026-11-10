@@ -117,13 +117,17 @@ export default function FileUploader({
     );
   }
 
-  /** Shows a stored file of `consultationId` (if the form still shows it) and drops its queue item. */
+  /**
+   * A file is stored: drops its queue item and lists the file — unless the
+   * form now shows a different consultation (it belongs to the other one).
+   */
   function showStored(consultationId: string, key: number, stored: ConsultationFile) {
+    if (!alive.current) return;
+    setQueue((prev) => prev.filter((q) => q.key !== key));
     const shown = consultationIdRef.current;
-    if (!alive.current || (shown !== null && shown !== consultationId)) return;
+    if (shown !== null && shown !== consultationId) return;
     filesRef.current = mergeById(filesRef.current, [stored]);
     setFiles((prev) => mergeById(prev, [stored]));
-    setQueue((prev) => prev.filter((q) => q.key !== key));
   }
 
   /**
@@ -132,7 +136,11 @@ export default function FileUploader({
    * would duplicate it). Otherwise it is shown as failed, and if the request
    * still finishes later, the file then replaces the failed item.
    */
-  async function handleTimeout(target: Consultation, item: QueueItem, upload: Promise<ConsultationFile>) {
+  async function handleTimeout(
+    target: Consultation,
+    item: QueueItem,
+    upload: Promise<ConsultationFile>,
+  ) {
     const shownIds = () => new Set(filesRef.current.map((f) => f.id));
     const arrived = await listFiles(target.id)
       .then((stored) => findArrivedFile(stored, shownIds(), item.file))
