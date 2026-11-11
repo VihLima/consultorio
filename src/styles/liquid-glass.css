@@ -398,12 +398,12 @@ select option { background: #fffafd; color: var(--text); }
 
 /* Login: one centered glass card; the logo lettering (transparent, no
    plate) sits on the card's top edge, half over the background, half over
-   the card. A soft white glow keeps it legible on the pink. */
+   the card. A faint edge light and shadow keep it crisp on the pink. */
 .login-page {
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 104px 16px 32px;
+  padding: 96px 16px 32px;
 }
 .login-card {
   position: relative;
@@ -412,7 +412,7 @@ select option { background: #fffafd; color: var(--text); }
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 96px 32px 32px;
+  padding: 88px 32px 32px;
   border-radius: 28px;
 }
 .login-card .field { margin: 0; }
@@ -422,14 +422,13 @@ select option { background: #fffafd; color: var(--text); }
   left: 50%;
   transform: translate(-50%, -52%);
   display: block;
-  width: 380px;
+  width: 340px;
   max-width: calc(100vw - 24px);
   height: auto;
   pointer-events: none;
   filter:
-    drop-shadow(0 0 1px #ffffff)
-    drop-shadow(0 0 10px #ffffffd9)
-    drop-shadow(0 6px 14px #7a2e5226);
+    drop-shadow(0 0 1px #ffffffb3)
+    drop-shadow(0 4px 10px #7a2e521f);
 }
 .login-card .btn-big { margin-top: 6px; }
 @media (max-width: 680px) {
