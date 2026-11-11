@@ -396,13 +396,14 @@ select option { background: #fffafd; color: var(--text); }
   color: #a32646;
 }
 
-/* Login: one centered glass card; the logo sits on a white plate that
-   straddles the card's top edge, half over the background, half over the card. */
+/* Login: one centered glass card; the logo lettering (transparent, no
+   plate) sits on the card's top edge, half over the background, half over
+   the card. A soft white glow keeps it legible on the pink. */
 .login-page {
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 96px 16px 32px;
+  padding: 80px 16px 32px;
 }
 .login-card {
   position: relative;
@@ -411,7 +412,7 @@ select option { background: #fffafd; color: var(--text); }
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 100px 32px 32px;
+  padding: 76px 32px 32px;
   border-radius: 28px;
 }
 .login-card .field { margin: 0; }
@@ -419,26 +420,21 @@ select option { background: #fffafd; color: var(--text); }
   position: absolute;
   top: 0;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -52%);
   display: block;
-  width: 264px;
+  width: 300px;
   height: auto;
-  padding: 14px 24px;
-  box-sizing: border-box;
-  background: #fff;
-  border: 1px solid #fff;
-  border-radius: 28px;
-  box-shadow:
-    0 0 0 6px #ffffff8c,
-    0 0 0 7px #b8789a33,
-    0 18px 40px #7a2e5233,
-    0 4px 10px #7a2e521a;
+  pointer-events: none;
+  filter:
+    drop-shadow(0 0 1px #ffffff)
+    drop-shadow(0 0 10px #ffffffd9)
+    drop-shadow(0 6px 14px #7a2e5226);
 }
 .login-card .btn-big { margin-top: 6px; }
 @media (max-width: 680px) {
-  .login-page { padding-top: 84px; }
-  .login-card { padding: 88px 20px 24px; }
-  .login-logo { width: 224px; padding: 12px 20px; border-radius: 24px; }
+  .login-page { padding-top: 72px; }
+  .login-card { padding: 66px 20px 24px; }
+  .login-logo { width: 250px; }
 }
 
 /* Startup: a single glass pill while the session is read. */

@@ -39,7 +39,7 @@ export default function Login() {
   return (
     <main className="login-page">
       <form className="card login-card" onSubmit={handleSubmit}>
-        <img className="login-logo" src="/logo.webp" alt={t('common.logoAlt')} width="1600" height="800" />
+        <img className="login-logo" src="/logo-transparent.webp" alt={t('common.logoAlt')} width="900" height="310" />
         <h1 className="visually-hidden">{t('login.title')}</h1>
         <div className="field">
           <label htmlFor="login-email">{t('login.email')}</label>
