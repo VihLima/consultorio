@@ -396,35 +396,49 @@ select option { background: #fffafd; color: var(--text); }
   color: #a32646;
 }
 
-/* Login: one centered glass card with the clinic logo, nothing else. */
+/* Login: one centered glass card; the logo sits on a white plate that
+   straddles the card's top edge, half over the background, half over the card. */
 .login-page {
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 24px 16px;
+  padding: 96px 16px 32px;
 }
 .login-card {
+  position: relative;
   width: 100%;
   max-width: 400px;
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 36px 32px 32px;
+  padding: 100px 32px 32px;
   border-radius: 28px;
 }
 .login-card .field { margin: 0; }
 .login-logo {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: block;
-  width: 200px;
+  width: 264px;
   height: auto;
-  margin: 0 auto 8px;
-  border-radius: 16px;
-  box-shadow: 0 4px 14px #8b3c6212;
+  padding: 14px 24px;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #fff;
+  border-radius: 28px;
+  box-shadow:
+    0 0 0 6px #ffffff8c,
+    0 0 0 7px #b8789a33,
+    0 18px 40px #7a2e5233,
+    0 4px 10px #7a2e521a;
 }
 .login-card .btn-big { margin-top: 6px; }
 @media (max-width: 680px) {
-  .login-card { padding: 28px 20px 24px; }
-  .login-logo { width: 170px; }
+  .login-page { padding-top: 84px; }
+  .login-card { padding: 88px 20px 24px; }
+  .login-logo { width: 224px; padding: 12px 20px; border-radius: 24px; }
 }
 
 /* Startup: a single glass pill while the session is read. */
