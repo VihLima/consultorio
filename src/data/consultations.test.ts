@@ -8,7 +8,7 @@ const {
   getConsultation,
   hasDbMessage,
   listClosedConsultations,
-  listShiftIncomes,
+  listShiftConsultations,
   listShiftSummaries,
   reactivatePatient,
   saveConsultationDraft,
@@ -66,16 +66,18 @@ describe('saveConsultationDraft', () => {
 });
 
 describe('closeConsultation', () => {
-  it('calls the close_consultation RPC', async () => {
+  it('calls the close_consultation RPC with the part paid now', async () => {
     responses.push({ data: null, error: null });
-    await closeConsultation('c1', 150000);
-    expect(calls).toContain('rpc(close_consultation,{"p_consultation_id":"c1","p_amount":150000})');
+    await closeConsultation('c1', 150000, 50000, 'transfer');
+    expect(calls).toContain(
+      'rpc(close_consultation,{"p_consultation_id":"c1","p_amount":150000,"p_paid":50000,"p_method":"transfer"})',
+    );
   });
 
   it('rethrows the database error so the caller can tell no_open_shift apart', async () => {
     const failure = { code: 'P0001', message: 'no_open_shift' };
     responses.push({ data: null, error: failure });
-    const error = await closeConsultation('c1', 0).catch((e: unknown) => e);
+    const error = await closeConsultation('c1', 0, 0, 'cash').catch((e: unknown) => e);
     expect(error).toBe(failure);
     expect(hasDbMessage(error, 'no_open_shift')).toBe(true);
     expect(hasDbMessage(error, 'invalid_amount')).toBe(false);
@@ -102,7 +104,7 @@ describe('listClosedConsultations', () => {
   });
 });
 
-describe('listShiftIncomes', () => {
+describe('listShiftConsultations', () => {
   it("returns the shift's closed consultations with the patient name, in closing order", async () => {
     responses.push({
       data: [
@@ -111,7 +113,7 @@ describe('listShiftIncomes', () => {
       ],
       error: null,
     });
-    await expect(listShiftIncomes('s1')).resolves.toEqual([
+    await expect(listShiftConsultations('s1')).resolves.toEqual([
       { consultation_id: 'c1', patient_id: 'p1', patient_name: 'Ana', closed_at: '2026-11-10T13:00:00Z', amount_pyg: 150000 },
       { consultation_id: 'c2', patient_id: 'p2', patient_name: 'Beto', closed_at: '2026-11-10T14:00:00Z', amount_pyg: 0 },
     ]);
@@ -129,14 +131,14 @@ describe('listShiftSummaries', () => {
           id: 's2',
           opened_at: '2026-11-10T11:00:00Z',
           closed_at: '2026-11-10T20:00:00Z',
-          consultations: [{ amount_pyg: 150000 }, { amount_pyg: 200000 }],
+          payments: [{ amount_pyg: 150000 }, { amount_pyg: 200000 }],
           expenses: [{ amount_pyg: 50000 }],
         },
         {
           id: 's1',
           opened_at: '2026-11-09T11:00:00Z',
           closed_at: '2026-11-09T20:00:00Z',
-          consultations: [],
+          payments: [],
           expenses: [{ amount_pyg: 80000 }],
         },
       ],
@@ -160,8 +162,8 @@ describe('listShiftSummaries', () => {
         balance: -80000,
       },
     ]);
-    // Only closed consultations count as income; only closed shifts are listed.
-    expect(calls).toContain('eq(["consultations.status","closed"])');
+    // Income is what was received (payments); only closed shifts are listed.
+    expect(calls).toContain('select(["id, opened_at, closed_at, payments (amount_pyg), expenses (amount_pyg)"])');
     expect(calls).toContain('not(["closed_at","is",null])');
     expect(calls).toContain('order(["opened_at",{"ascending":false}])');
   });

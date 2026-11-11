@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { hasDbMessage, listShiftIncomes, type ShiftIncome } from '../data/consultations';
+import { hasDbMessage } from '../data/consultations';
+import { listShiftPayments, type ShiftPayment } from '../data/payments';
 import { addExpense, listExpenses, removeExpense, updateExpense } from '../data/expenses';
 import { formatTime } from '../lib/dates';
 import { formatPyg, parsePyg } from '../lib/money';
@@ -20,7 +21,7 @@ interface ShiftSummaryProps {
 /** Totals, income list (read only) and expense list (+ form while the shift is open). */
 export default function ShiftSummary({ shiftId, readOnly = false }: ShiftSummaryProps) {
   const { t } = useTranslation();
-  const [incomes, setIncomes] = useState<ShiftIncome[]>([]);
+  const [incomes, setIncomes] = useState<ShiftPayment[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [tab, setTab] = useState<Tab>('income');
@@ -30,7 +31,7 @@ export default function ShiftSummary({ shiftId, readOnly = false }: ShiftSummary
       setLoadState('loading');
       try {
         const [nextIncomes, nextExpenses] = await Promise.all([
-          listShiftIncomes(shiftId),
+          listShiftPayments(shiftId),
           listExpenses(shiftId),
         ]);
         if (!isCurrent()) return;
@@ -104,10 +105,12 @@ export default function ShiftSummary({ shiftId, readOnly = false }: ShiftSummary
           ) : (
             <ul className="list">
               {incomes.map((income) => (
-                <li key={income.consultation_id}>
+                <li key={income.id}>
                   <span className="list-link__main">
                     {income.patient_name}
-                    <span className="list-link__sub muted">{formatTime(income.closed_at)}</span>
+                    <span className="list-link__sub muted">
+                      {formatTime(income.paid_at)} · {t(`payments.methods.${income.method}`)}
+                    </span>
                   </span>
                   <span className="amount">{formatPyg(income.amount_pyg)}</span>
                 </li>

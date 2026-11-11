@@ -10,6 +10,7 @@ export interface Patient {
   birth_date: string | null;
   cedula: string | null;
   notes: string | null;
+  phone: string | null;
 }
 
 export interface Consultation {
@@ -30,6 +31,21 @@ export interface ConsultationFile {
   file_name: string;
   mime_type: string;
   size_bytes: number;
+}
+
+export const PAYMENT_METHODS = ['cash', 'transfer', 'card'] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+/** Money received from a patient, in the shift where it was received. */
+export interface Payment {
+  id: string;
+  patient_id: string;
+  /** Set when paid while closing that consultation; null for a later payment of the balance. */
+  consultation_id: string | null;
+  shift_id: string;
+  amount_pyg: number;
+  method: PaymentMethod;
+  paid_at: string;
 }
 
 export interface Expense {

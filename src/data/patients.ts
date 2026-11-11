@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase';
 import { escapeLike, normalizeCedula, normalizeSearch, patientStatus } from '../lib/patients';
 import type { Patient } from '../lib/types';
 
-export const PATIENT_COLUMNS = 'id, full_name, birth_date, cedula, notes';
+export const PATIENT_COLUMNS = 'id, full_name, birth_date, cedula, notes, phone';
 
 /** Postgres unique_violation: `patients_cedula` already has this normalized cédula. */
 export const DUPLICATE_CEDULA = '23505';
@@ -14,11 +14,14 @@ export interface PatientInput {
   cedula: string | null;
   /** Free-text notes; blank is stored as null. */
   notes: string | null;
+  /** Phone as typed; blank is stored as null. */
+  phone: string | null;
 }
 
 function clean(input: PatientInput) {
   const cedula = input.cedula?.trim() ?? '';
   const notes = input.notes?.trim() ?? '';
+  const phone = input.phone?.trim() ?? '';
   return {
     // NFC: a name typed with combining accents is stored like a precomposed
     // one, so the full_name_search column folds it like any other.
@@ -26,6 +29,7 @@ function clean(input: PatientInput) {
     birth_date: input.birth_date || null,
     cedula: cedula === '' ? null : cedula,
     notes: notes === '' ? null : notes,
+    phone: phone === '' ? null : phone,
   };
 }
 

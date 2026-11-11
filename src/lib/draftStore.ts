@@ -9,10 +9,11 @@ export interface Draft {
   birth_date?: string;
   cedula?: string;
   notes?: string;
+  phone?: string;
 }
 
 const PREFIX = 'draft:';
-const OPTIONAL_FIELDS = ['base', 'full_name', 'birth_date', 'cedula', 'notes'] as const;
+const OPTIONAL_FIELDS = ['base', 'full_name', 'birth_date', 'cedula', 'notes', 'phone'] as const;
 
 function isDraft(value: unknown): value is Draft {
   if (value === null || typeof value !== 'object') return false;

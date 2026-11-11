@@ -23,6 +23,7 @@ export default function Layout({ title, back, onBack, backDisabled, children }: 
   const date = new Intl.DateTimeFormat(i18n.language, { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
   const navigation: { to: string; icon: IconName; label: string; active: boolean }[] = [
     { to: '/inicio', icon: 'overview', label: t('design.overview'), active: pathname === '/inicio' },
+    { to: '/agenda', icon: 'calendar', label: t('agenda.title'), active: pathname === '/agenda' },
     { to: '/pacientes', icon: 'patients', label: t('home.patients'), active: pathname.startsWith('/pacient') },
     { to: '/financas', icon: 'wallet', label: t('home.finances'), active: pathname === '/financas' || pathname.startsWith('/turnos') },
   ];

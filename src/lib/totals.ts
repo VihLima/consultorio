@@ -17,3 +17,17 @@ export function shiftTotals(incomes: number[], expenses: number[]): ShiftTotals 
   const expense = sum(expenses);
   return { income, expense, balance: income - expense };
 }
+
+export interface PatientBalance {
+  charged: number;
+  paid: number;
+  /** What the patient still owes; never below 0 (an overpayment is not a debt). */
+  pending: number;
+}
+
+/** A patient's account: charged in finished consultations, paid, and still pending. */
+export function patientBalance(charges: number[], payments: number[]): PatientBalance {
+  const charged = sum(charges);
+  const paid = sum(payments);
+  return { charged, paid, pending: Math.max(charged - paid, 0) };
+}

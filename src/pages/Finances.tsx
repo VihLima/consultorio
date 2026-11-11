@@ -3,7 +3,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Layout from '../components/Layout';
 import ShiftSummary, { TotalCards } from '../components/ShiftSummary';
-import { listShiftIncomes, listShiftSummaries, type ShiftSummaryRow } from '../data/consultations';
+import { listShiftConsultations, listShiftSummaries, type ShiftSummaryRow } from '../data/consultations';
+import { listShiftPayments } from '../data/payments';
 import { listExpenses } from '../data/expenses';
 import { listActivePatients } from '../data/patients';
 import { closeShift, getOpenShift } from '../data/shifts';
@@ -164,14 +165,15 @@ function CloseShift({ shift, error, onError }: CloseShiftProps) {
     async (isCurrent: () => boolean = () => true) => {
       setLoadState('loading');
       try {
-        const [incomes, expenses, active] = await Promise.all([
-          listShiftIncomes(shift.id),
+        const [consultations, incomes, expenses, active] = await Promise.all([
+          listShiftConsultations(shift.id),
+          listShiftPayments(shift.id),
           listExpenses(shift.id),
           listActivePatients(),
         ]);
         if (!isCurrent()) return;
         setData({
-          patientsSeen: countDistinct(incomes.map((income) => income.patient_id)),
+          patientsSeen: countDistinct(consultations.map((c) => c.patient_id)),
           activePatients: active.length,
           totals: shiftTotals(
             incomes.map((income) => income.amount_pyg),

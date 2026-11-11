@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthProvider';
 import RequireAuth from './auth/RequireAuth';
+import Agenda from './pages/Agenda';
 import Cover from './pages/Cover';
 import Finances from './pages/Finances';
 import Home from './pages/Home';
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route element={<RequireAuth />}>
             <Route path="/inicio" element={<Home />} />
+            <Route path="/agenda" element={<Agenda />} />
             <Route path="/paciente/novo" element={<PatientForm />} />
             <Route path="/paciente/:id" element={<PatientForm />} />
             <Route path="/pacientes" element={<Patients />} />

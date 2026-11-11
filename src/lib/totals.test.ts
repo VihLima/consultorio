@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countDistinct, shiftTotals } from './totals';
+import { countDistinct, patientBalance, shiftTotals } from './totals';
 
 describe('countDistinct', () => {
   it('counts each patient once, however many consultations they had', () => {
@@ -24,5 +24,23 @@ describe('shiftTotals', () => {
 
   it('gives a negative balance when expenses exceed incomes', () => {
     expect(shiftTotals([0], [80000])).toEqual({ income: 0, expense: 80000, balance: -80000 });
+  });
+});
+
+describe('patientBalance', () => {
+  it('subtracts what was paid from what was charged', () => {
+    expect(patientBalance([200000, 150000], [50000, 150000])).toEqual({
+      charged: 350000,
+      paid: 200000,
+      pending: 150000,
+    });
+  });
+
+  it('is all zeros without consultations', () => {
+    expect(patientBalance([], [])).toEqual({ charged: 0, paid: 0, pending: 0 });
+  });
+
+  it('never shows a negative pending balance', () => {
+    expect(patientBalance([100000], [120000]).pending).toBe(0);
   });
 });

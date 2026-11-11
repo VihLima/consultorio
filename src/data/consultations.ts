@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { shiftTotals, type ShiftTotals } from '../lib/totals';
-import type { Consultation, Shift } from '../lib/types';
+import type { Consultation, PaymentMethod, Shift } from '../lib/types';
 import { getOpenShift } from './shifts';
 
 export const CONSULTATION_COLUMNS =
@@ -81,10 +81,21 @@ export async function saveConsultationDraft(id: string, clinical_history: string
 }
 
 /** Closes the consultation in the open shift (RPC); errors keep the database message. */
-export async function closeConsultation(id: string, amount: number): Promise<void> {
+/**
+ * Closes the consultation charging `amount`; `paid` of it is received now
+ * (recorded as a payment in the open shift) and the rest stays pending.
+ */
+export async function closeConsultation(
+  id: string,
+  amount: number,
+  paid: number,
+  method: PaymentMethod,
+): Promise<void> {
   const { error } = await supabase.rpc('close_consultation', {
     p_consultation_id: id,
     p_amount: amount,
+    p_paid: paid,
+    p_method: method,
   });
   if (error) throw error;
 }
@@ -109,7 +120,7 @@ export async function listClosedConsultations(patientId: string): Promise<Closed
   }));
 }
 
-export interface ShiftIncome {
+export interface ShiftConsultation {
   consultation_id: string;
   patient_id: string;
   patient_name: string;
@@ -118,10 +129,10 @@ export interface ShiftIncome {
 }
 
 /**
- * Income of a shift: the consultations finished in it (each consultation has
- * a single `shift_id`, so it is never counted twice), in closing order.
+ * Consultations finished in a shift, in closing order (with the amount
+ * charged). The shift's income is what was received: see listShiftPayments.
  */
-export async function listShiftIncomes(shiftId: string): Promise<ShiftIncome[]> {
+export async function listShiftConsultations(shiftId: string): Promise<ShiftConsultation[]> {
   const { data, error } = await supabase
     .from('consultations')
     .select('id, patient_id, closed_at, amount_pyg, patients (full_name)')
@@ -149,27 +160,26 @@ export type ShiftSummaryRow = Shift & ShiftTotals;
 
 /**
  * Closed shifts, most recent first, with their totals. One request: the
- * amounts of the shift's closed consultations and expenses come embedded and
+ * amounts of the shift's payments (income) and expenses come embedded and
  * are added up here.
  */
 export async function listShiftSummaries(): Promise<ShiftSummaryRow[]> {
   const { data, error } = await supabase
     .from('shifts')
-    .select('id, opened_at, closed_at, consultations (amount_pyg), expenses (amount_pyg)')
-    .eq('consultations.status', 'closed')
+    .select('id, opened_at, closed_at, payments (amount_pyg), expenses (amount_pyg)')
     .not('closed_at', 'is', null)
     .order('opened_at', { ascending: false });
   if (error) throw error;
   const rows = (data ?? []) as unknown as Array<
     Shift & {
-      consultations: Array<{ amount_pyg: number }>;
+      payments: Array<{ amount_pyg: number }>;
       expenses: Array<{ amount_pyg: number }>;
     }
   >;
-  return rows.map(({ consultations, expenses, ...shift }) => ({
+  return rows.map(({ payments, expenses, ...shift }) => ({
     ...shift,
     ...shiftTotals(
-      consultations.map((c) => c.amount_pyg),
+      payments.map((p) => p.amount_pyg),
       expenses.map((e) => e.amount_pyg),
     ),
   }));

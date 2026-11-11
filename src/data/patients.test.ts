@@ -12,7 +12,7 @@ const {
   searchPatients,
 } = await import('./patients');
 
-const PATIENT = { id: 'p1', full_name: 'Ana', birth_date: null, cedula: '1.234.567', notes: null };
+const PATIENT = { id: 'p1', full_name: 'Ana', birth_date: null, cedula: '1.234.567', notes: null, phone: null };
 
 beforeEach(resetFake);
 
@@ -38,24 +38,24 @@ describe('findPatientByCedula', () => {
 describe('createPatient', () => {
   it('trims the name and stores empty cédula as null', async () => {
     responses.push({ data: PATIENT, error: null });
-    await createPatient({ full_name: '  Ana ', birth_date: null, cedula: '  ', notes: '  ' });
-    expect(calls).toContain('insert([{"full_name":"Ana","birth_date":null,"cedula":null,"notes":null}])');
+    await createPatient({ full_name: '  Ana ', birth_date: null, cedula: '  ', notes: '  ', phone: '  ' });
+    expect(calls).toContain('insert([{"full_name":"Ana","birth_date":null,"cedula":null,"notes":null,"phone":null}])');
   });
 
   it('stores the name in NFC, so combining accents fold like precomposed ones', async () => {
     responses.push({ data: PATIENT, error: null });
-    await createPatient({ full_name: ' Mari\u0301a ', birth_date: null, cedula: null, notes: null });
+    await createPatient({ full_name: ' Mari\u0301a ', birth_date: null, cedula: null, notes: null, phone: null });
     // 'i' + U+0301 (combining acute) becomes the single character U+00ED.
     expect(calls).toContain(
-      'insert([{"full_name":"Mar\u00eda","birth_date":null,"cedula":null,"notes":null}])',
+      'insert([{"full_name":"Mar\u00eda","birth_date":null,"cedula":null,"notes":null,"phone":null}])',
     );
   });
 
   it('trims the notes', async () => {
     responses.push({ data: PATIENT, error: null });
-    await createPatient({ full_name: 'Ana', birth_date: null, cedula: null, notes: ' Alergia a penicilina\n' });
+    await createPatient({ full_name: 'Ana', birth_date: null, cedula: null, notes: ' Alergia a penicilina\n', phone: ' 0981 123 456 ' });
     expect(calls).toContain(
-      'insert([{"full_name":"Ana","birth_date":null,"cedula":null,"notes":"Alergia a penicilina"}])',
+      'insert([{"full_name":"Ana","birth_date":null,"cedula":null,"notes":"Alergia a penicilina","phone":"0981 123 456"}])',
     );
   });
 });

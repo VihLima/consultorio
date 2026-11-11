@@ -5,6 +5,7 @@ export const responses: Array<{ data: unknown; error: unknown }> = [];
 export const calls: string[] = [];
 
 const CHAIN = [
+  'gte', 'lt', 'or',
   'select', 'insert', 'update', 'delete', 'eq', 'is', 'not', 'in', 'order', 'limit', 'ilike', 'like',
 ];
 

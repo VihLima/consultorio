@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import Layout from '../components/Layout';
 import Icon from '../components/Icon';
 import { listActivePatients } from '../data/patients';
-import { listShiftIncomes, type ShiftIncome } from '../data/consultations';
+import { listShiftConsultations } from '../data/consultations';
+import { listShiftPayments, type ShiftPayment } from '../data/payments';
 import { listExpenses } from '../data/expenses';
 import { getOpenShift, openShift } from '../data/shifts';
 import { formatDate, formatTime, isStaleShift } from '../lib/dates';
@@ -20,7 +21,8 @@ export default function Home() {
   const navigate = useNavigate();
   const [shift, setShift] = useState<Shift | null>(null);
   const [patients, setPatients] = useState<ActivePatient[]>([]);
-  const [incomes, setIncomes] = useState<ShiftIncome[]>([]);
+  const [incomes, setIncomes] = useState<ShiftPayment[]>([]);
+  const [finished, setFinished] = useState(0);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [busy, setBusy] = useState(false);
@@ -32,9 +34,9 @@ export default function Home() {
     setLoadState('loading');
     try {
       const [open, active] = await Promise.all([getOpenShift(), listActivePatients()]);
-      const [income, expense] = open ? await Promise.all([listShiftIncomes(open.id), listExpenses(open.id)]) : [[], []];
+      const [closed, income, expense] = open ? await Promise.all([listShiftConsultations(open.id), listShiftPayments(open.id), listExpenses(open.id)]) : [[], [], []];
       if (!isCurrent()) return;
-      setShift(open); setPatients(active); setIncomes(income); setExpenses(expense);
+      setShift(open); setPatients(active); setFinished(closed.length); setIncomes(income); setExpenses(expense);
       setLoadState('ready');
     } catch { if (isCurrent()) setLoadState('error'); }
   }, []);
@@ -80,7 +82,7 @@ export default function Home() {
 
       <section className="metrics-grid" aria-label={t('shift.summaryTitle')} aria-busy={!ready}>
         <article className="metric"><div className="metric-label"><span>{t('home.inProgress')}</span><Icon name="patients" /></div><strong>{value(patients.length)}</strong><span className="metric-foot"><span className="status-dot" />{t('design.openDrafts')}</span></article>
-        <article className="metric"><div className="metric-label"><span>{t('design.finished')}</span><Icon name="check" /></div><strong>{value(incomes.length)}</strong><span className="metric-foot">{t('design.inCurrentShift')}</span></article>
+        <article className="metric"><div className="metric-label"><span>{t('design.finished')}</span><Icon name="check" /></div><strong>{value(finished)}</strong><span className="metric-foot">{t('design.inCurrentShift')}</span></article>
         <article className="metric"><div className="metric-label"><span>{t('finances.income')}</span><Icon name="chart" /></div><strong className="metric-money">{value(totals.income, true)}</strong><span className="metric-foot">{t('design.finishedIncome')}</span></article>
         <article className="metric metric-balance"><div className="metric-label"><span>{t('finances.balance')}</span><Icon name="wallet" /></div><strong className={`metric-money ${totals.balance < 0 ? 'amount-negative' : ''}`}>{value(totals.balance, true)}</strong><span className="metric-foot">{t('design.netBalance')}</span></article>
       </section>
@@ -106,7 +108,7 @@ export default function Home() {
 
       <section className="panel recent-panel" aria-labelledby="recent-title">
         <div className="panel-heading"><div><h2 id="recent-title">{t('design.recentActivity')}</h2><p>{t('design.recentHint')}</p></div><button className="btn btn-small" disabled={loadState === 'loading' || busy} onClick={() => void load()}><Icon name="refresh" size={16} />{t('design.refresh')}</button></div>
-        {ready && incomes.length > 0 ? <ul className="recent-list">{incomes.slice(-5).reverse().map(income => <li key={income.consultation_id}><span className="activity-icon"><Icon name="check" size={18} /></span><span className="activity-time">{formatTime(income.closed_at)}</span><Link to={`/paciente/${income.patient_id}`}><strong>{income.patient_name}</strong><span>{t('design.consultationFinished')}</span></Link><span className="amount">{formatPyg(income.amount_pyg)}</span></li>)}</ul> : <p className="empty recent-empty"><Icon name="clock" />{t(!ready ? loadState === 'error' ? 'errors.loadFailed' : 'common.loading' : 'design.noActivity')}</p>}
+        {ready && incomes.length > 0 ? <ul className="recent-list">{incomes.slice(-5).reverse().map(income => <li key={income.id}><span className="activity-icon"><Icon name="check" size={18} /></span><span className="activity-time">{formatTime(income.paid_at)}</span><Link to={`/paciente/${income.patient_id}`}><strong>{income.patient_name}</strong><span>{t('payments.received')} · {t(`payments.methods.${income.method}`)}</span></Link><span className="amount">{formatPyg(income.amount_pyg)}</span></li>)}</ul> : <p className="empty recent-empty"><Icon name="clock" />{t(!ready ? loadState === 'error' ? 'errors.loadFailed' : 'common.loading' : 'design.noActivity')}</p>}
       </section>
     </div>
   </Layout>;

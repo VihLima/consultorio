@@ -5,6 +5,7 @@ import Layout from '../components/Layout';
 import Icon from '../components/Icon';
 import ConsultationHistory from '../components/ConsultationHistory';
 import FileUploader from '../components/FileUploader';
+import PatientPayments from '../components/PatientPayments';
 import {
   closeConsultation,
   getConsultation,
@@ -30,7 +31,8 @@ import { normalizeCedula } from '../lib/patients';
 import { closedOutcome } from '../lib/closedOutcome';
 import { nothingToKeep, unnamedBack } from '../lib/formExit';
 import { pickDraft } from '../lib/pickDraft';
-import type { Consultation, Patient } from '../lib/types';
+import { whatsappUrl } from '../lib/phone';
+import { PAYMENT_METHODS, type Consultation, type Patient, type PaymentMethod } from '../lib/types';
 import { useSubmitOnce } from '../lib/useSubmitOnce';
 
 type LoadState = 'loading' | 'ready' | 'error';
@@ -43,10 +45,11 @@ const NO_OPEN_SHIFT = { message: 'no_open_shift' };
 interface FieldErrors {
   name?: string;
   amount?: string;
+  paid?: string;
 }
 
 function hasContent(draft: Draft): boolean {
-  return [draft.full_name, draft.birth_date, draft.cedula, draft.notes, draft.clinical_history, draft.amount].some(
+  return [draft.full_name, draft.birth_date, draft.cedula, draft.phone, draft.notes, draft.clinical_history, draft.amount].some(
     (value) => value !== undefined && value.trim() !== '',
   );
 }
@@ -98,8 +101,12 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
   const [birthDate, setBirthDate] = useState('');
   const [cedula, setCedula] = useState('');
   const [notes, setNotes] = useState('');
+  const [phone, setPhone] = useState('');
   const [history, setHistory] = useState('');
   const [amount, setAmount] = useState('');
+  /** Part of the amount received now; blank = paid in full. */
+  const [paidNow, setPaidNow] = useState('');
+  const [method, setMethod] = useState<PaymentMethod>('cash');
 
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -116,14 +123,15 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
   // Latest values for async flows that outlive a render (uploads, saves, page hide).
   const patientRef = useRef<Patient | null>(null);
   const consultationRef = useRef<Consultation | null>(null);
-  const valuesRef = useRef({ fullName, birthDate, cedula, notes, history, amount });
-  valuesRef.current = { fullName, birthDate, cedula, notes, history, amount };
-  const inputRef = useRef<PatientInput>({ full_name: '', birth_date: null, cedula: null, notes: null });
+  const valuesRef = useRef({ fullName, birthDate, cedula, notes, phone, history, amount });
+  valuesRef.current = { fullName, birthDate, cedula, notes, phone, history, amount };
+  const inputRef = useRef<PatientInput>({ full_name: '', birth_date: null, cedula: null, notes: null, phone: null });
   inputRef.current = {
     full_name: fullName,
     birth_date: birthDate || null,
     cedula: cedula || null,
     notes: notes || null,
+    phone: phone || null,
   };
   /** This form was opened on /paciente/novo (its local draft lives under `draft:new` until a consultation exists). */
   const startedNew = useRef(!id);
@@ -172,6 +180,7 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
         birth_date: values.birthDate,
         cedula: values.cedula,
         notes: values.notes,
+        phone: values.phone,
       };
       draftStore.save(NEW_DRAFT, draft);
     }
@@ -234,6 +243,7 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
         setBirthDate(loadedPatient.birth_date ?? '');
         setCedula(loadedPatient.cedula ?? '');
         setNotes(loadedPatient.notes ?? '');
+        setPhone(loadedPatient.phone ?? '');
         if (open) {
           serverText.current = open.clinical_history;
           const picked = pickDraft(open.clinical_history, draftStore.load(open.id));
@@ -257,7 +267,7 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
     cancelDraftTimer();
     draftTimer.current = setTimeout(writeLocalDraft, 500);
     return cancelDraftTimer;
-  }, [history, amount, fullName, birthDate, cedula, notes, writeLocalDraft]);
+  }, [history, amount, fullName, birthDate, cedula, notes, phone, writeLocalDraft]);
 
   // Final flush when the page is hidden or closed, and when the form unmounts
   // (e.g. the browser's back button) — the debounce must not lose the last edit.
@@ -395,8 +405,11 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
     if (value === null) {
       errors.amount = amount.trim() === '' ? 'patient.amountRequired' : 'errors.invalidAmount';
     }
+    const paid = paidNow.trim() === '' ? value : parsePyg(paidNow);
+    if (paid === null && paidNow.trim() !== '') errors.paid = 'errors.invalidAmount';
+    else if (paid !== null && value !== null && paid > value) errors.paid = 'payments.paidMoreThanCharged';
     setFieldErrors(errors);
-    if (errors.name || errors.amount || value === null) return;
+    if (errors.name || errors.amount || errors.paid || value === null || paid === null) return;
 
     let open: Consultation | null = consultationRef.current;
     try {
@@ -407,7 +420,7 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
       }
       await saveConsultationDraft(open.id, history);
       afterServerSave(open.id, history);
-      await closeConsultation(open.id, value);
+      await closeConsultation(open.id, value, paid, method);
       finish(open.id);
       navigate('/inicio');
     } catch (error) {
@@ -589,6 +602,11 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
     if (value !== null) setAmount(formatPyg(value));
   }
 
+  function handlePaidBlur() {
+    const value = parsePyg(paidNow);
+    if (value !== null) setPaidNow(formatPyg(value));
+  }
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (showConsultation) void saveAndExit.run();
@@ -601,6 +619,10 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
     savePatientOnly.busy ||
     openDuplicate.busy ||
     reactivate.busy;
+  const whatsapp = whatsappUrl(phone);
+  const chargedValue = parsePyg(amount);
+  const paidValue = paidNow.trim() === '' ? chargedValue : parsePyg(paidNow);
+  const pendingAfter = chargedValue !== null && paidValue !== null ? chargedValue - paidValue : null;
   const title = id ? patient?.full_name || t('patient.title') : t('patient.newTitle');
 
   if (loadState !== 'ready') {
@@ -628,6 +650,7 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
     setBirthDate(pendingNewDraft.birth_date ?? '');
     setCedula(pendingNewDraft.cedula ?? '');
     setNotes(pendingNewDraft.notes ?? '');
+    setPhone(pendingNewDraft.phone ?? '');
     setHistory(pendingNewDraft.clinical_history);
     setAmount(pendingNewDraft.amount);
     setPendingNewDraft(null);
@@ -750,6 +773,29 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
           </div>
 
           <div className="field">
+            <label htmlFor="phone">
+              {t('patient.phone')} <span className="muted">{t('common.optional')}</span>
+            </label>
+            <div className="phone-row">
+              <input
+                id="phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="off"
+                placeholder="0981 123 456"
+                value={phone}
+                onChange={(e) => edit(setPhone)(e.target.value)}
+              />
+              {whatsapp && (
+                <a className="btn btn-whatsapp" href={whatsapp} target="_blank" rel="noopener noreferrer">
+                  <Icon name="chat" size={18} />
+                  {t('patient.whatsapp')}
+                </a>
+              )}
+            </div>
+          </div>
+
+          <div className="field">
             <label htmlFor="notes">
               {t('patient.notes')} <span className="muted">{t('common.optional')}</span>
             </label>
@@ -817,6 +863,47 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
                   {t(fieldErrors.amount)}
                 </p>
               )}
+            </div>
+
+            <div className="payment-form__row">
+              <div className="field">
+                <label htmlFor="paid_now">{t('payments.paidNow')}</label>
+                <input
+                  id="paid_now"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder={chargedValue !== null ? formatPyg(chargedValue) : ''}
+                  value={paidNow}
+                  aria-invalid={fieldErrors.paid ? true : undefined}
+                  aria-describedby={fieldErrors.paid ? 'paid-error' : 'paid-hint'}
+                  onChange={(e) => {
+                    setPaidNow(e.target.value);
+                    if (fieldErrors.paid) setFieldErrors((prev) => ({ ...prev, paid: undefined }));
+                  }}
+                  onBlur={handlePaidBlur}
+                />
+                {fieldErrors.paid ? (
+                  <p id="paid-error" className="field-error">{t(fieldErrors.paid)}</p>
+                ) : (
+                  <p id="paid-hint" className="field-hint">
+                    {pendingAfter !== null && pendingAfter > 0
+                      ? t('payments.pendingAfter', { amount: formatPyg(pendingAfter) })
+                      : t('payments.paidNowHint')}
+                  </p>
+                )}
+              </div>
+              <div className="field">
+                <label htmlFor="payment_method">{t('payments.method')}</label>
+                <select
+                  id="payment_method"
+                  value={method}
+                  onChange={(e) => setMethod(e.target.value as PaymentMethod)}
+                >
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m} value={m}>{t(`payments.methods.${m}`)}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </section>
         ) : (
@@ -895,6 +982,7 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
 
       {patient && (
         <div className="history-section">
+          <PatientPayments key={`pay-${patient.id}`} patientId={patient.id} />
           <ConsultationHistory key={patient.id} patientId={patient.id} />
         </div>
       )}
