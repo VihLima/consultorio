@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../auth/AuthProvider';
 import LanguageSwitcher from './LanguageSwitcher';
+import { TZ } from '../lib/dates';
 import Icon, { type IconName } from './Icon';
 
 interface LayoutProps {
@@ -20,7 +21,7 @@ export default function Layout({ title, back, onBack, backDisabled, children }: 
   const { pathname } = useLocation();
   const [leaving, setLeaving] = useState(false);
   const [logoutError, setLogoutError] = useState(false);
-  const date = new Intl.DateTimeFormat(i18n.language, { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
+  const date = new Intl.DateTimeFormat(i18n.language, { day: 'numeric', month: 'long', year: 'numeric', timeZone: TZ }).format(new Date());
   const navigation: { to: string; icon: IconName; label: string; active: boolean }[] = [
     { to: '/inicio', icon: 'overview', label: t('design.overview'), active: pathname === '/inicio' },
     { to: '/agenda', icon: 'calendar', label: t('agenda.title'), active: pathname === '/agenda' },
