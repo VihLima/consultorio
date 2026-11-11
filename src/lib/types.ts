@@ -9,6 +9,7 @@ export interface Patient {
   full_name: string;
   birth_date: string | null;
   cedula: string | null;
+  notes: string | null;
 }
 
 export interface Consultation {

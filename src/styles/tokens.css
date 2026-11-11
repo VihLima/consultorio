@@ -1,21 +1,18 @@
 :root {
-  /* Brand: magenta sampled from the logo. */
-  --brand: #D6186F;
-  --brand-dark: #A8105A;
-  --brand-soft: #FCE7F1;
-
-  --bg: #FFF8FB;
-  --surface: #FFFFFF;
-  --text: #2B2A2E;
-  --muted: #66646C;
-  --border: #EADCE3;
-  --danger: #C0262D;
-  --danger-soft: #FDECEC;
-
-  --radius: 12px;
+  --brand: #285447;
+  --brand-dark: #193e33;
+  --brand-soft: #eaf0e9;
+  --accent: #a5486c;
+  --bg: #f6f6f2;
+  --surface: #ffffff;
+  --text: #263c33;
+  --muted: #68736c;
+  --border: #e2e6df;
+  --danger: #ae3838;
+  --danger-soft: #fcf0ee;
+  --radius: 10px;
   --tap: 56px;
-  --gap: 16px;
-  --content-max: 960px;
-
-  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --gap: 20px;
+  --content-max: 1380px;
+  --font: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
 }

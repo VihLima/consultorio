@@ -111,6 +111,7 @@ export async function listClosedConsultations(patientId: string): Promise<Closed
 
 export interface ShiftIncome {
   consultation_id: string;
+  patient_id: string;
   patient_name: string;
   closed_at: string;
   amount_pyg: number;
@@ -123,19 +124,21 @@ export interface ShiftIncome {
 export async function listShiftIncomes(shiftId: string): Promise<ShiftIncome[]> {
   const { data, error } = await supabase
     .from('consultations')
-    .select('id, closed_at, amount_pyg, patients (full_name)')
+    .select('id, patient_id, closed_at, amount_pyg, patients (full_name)')
     .eq('shift_id', shiftId)
     .eq('status', 'closed')
     .order('closed_at', { ascending: true });
   if (error) throw error;
   const rows = (data ?? []) as unknown as Array<{
     id: string;
+    patient_id: string;
     closed_at: string;
     amount_pyg: number;
     patients: { full_name: string };
   }>;
   return rows.map((row) => ({
     consultation_id: row.id,
+    patient_id: row.patient_id,
     patient_name: row.patients.full_name,
     closed_at: row.closed_at,
     amount_pyg: row.amount_pyg,

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { shiftTotals } from './totals';
+import { countDistinct, shiftTotals } from './totals';
+
+describe('countDistinct', () => {
+  it('counts each patient once, however many consultations they had', () => {
+    expect(countDistinct(['p1', 'p1', 'p2'])).toBe(2);
+    expect(countDistinct(['p1'])).toBe(1);
+    expect(countDistinct([])).toBe(0);
+  });
+});
 
 describe('shiftTotals', () => {
   it('sums incomes and expenses and computes the balance', () => {

@@ -10,7 +10,7 @@ import { closeShift, getOpenShift } from '../data/shifts';
 import { formatDate, formatTime } from '../lib/dates';
 import { closeShiftErrorKey } from '../lib/errors';
 import { formatPyg } from '../lib/money';
-import { shiftTotals, type ShiftTotals } from '../lib/totals';
+import { countDistinct, shiftTotals, type ShiftTotals } from '../lib/totals';
 import type { Shift } from '../lib/types';
 import { useSubmitOnce } from '../lib/useSubmitOnce';
 
@@ -69,6 +69,7 @@ export default function Finances() {
   return (
     <Layout title={t('finances.title')} back="/inicio">
       <div className="stack">
+        <p className="muted">{t('design.financesHint')}</p>
         {loadState === 'loading' && <p className="muted">{t('common.loading')}</p>}
         {loadState === 'error' && (
           <div className="stack">
@@ -170,7 +171,7 @@ function CloseShift({ shift, error, onError }: CloseShiftProps) {
         ]);
         if (!isCurrent()) return;
         setData({
-          patientsSeen: incomes.length,
+          patientsSeen: countDistinct(incomes.map((income) => income.patient_id)),
           activePatients: active.length,
           totals: shiftTotals(
             incomes.map((income) => income.amount_pyg),

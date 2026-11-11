@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import Layout from '../components/Layout';
 import LoadingScreen from '../components/LoadingScreen';
 import { useAuth } from '../auth/AuthProvider';
 import { loginDestination } from '../auth/redirect';
@@ -38,42 +37,42 @@ export default function Login() {
   if (session && !submitting) return <Navigate to={destination} replace />;
 
   return (
-    <Layout title={t('login.title')} back="/">
-      <div className="stack narrow">
-        <form className="card" onSubmit={handleSubmit}>
-          <div className="field">
-            <label htmlFor="login-email">{t('login.email')}</label>
-            <input
-              id="login-email"
-              type="email"
-              autoComplete="username"
-              inputMode="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="login-password">{t('login.password')}</label>
-            <input
-              id="login-password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          <button type="submit" className="btn btn-primary btn-big" disabled={submitting}>
-            {submitting ? t('login.submitting') : t('login.submit')}
-          </button>
-        </form>
+    <main className="login-page">
+      <form className="card login-card" onSubmit={handleSubmit}>
+        <img className="login-logo" src="/logo.webp" alt={t('common.logoAlt')} width="1600" height="800" />
+        <h1 className="visually-hidden">{t('login.title')}</h1>
+        <div className="field">
+          <label htmlFor="login-email">{t('login.email')}</label>
+          <input
+            id="login-email"
+            type="email"
+            autoComplete="username"
+            inputMode="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="login-password">{t('login.password')}</label>
+          <input
+            id="login-password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
         {error && (
           <p className="alert alert-danger" role="alert">
             {t(error)}
           </p>
         )}
-      </div>
-    </Layout>
+        <button type="submit" className="btn btn-primary btn-big" disabled={submitting}>
+          {submitting ? t('login.submitting') : t('login.submit')}
+        </button>
+      </form>
+    </main>
   );
 }

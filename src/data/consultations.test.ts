@@ -106,14 +106,14 @@ describe('listShiftIncomes', () => {
   it("returns the shift's closed consultations with the patient name, in closing order", async () => {
     responses.push({
       data: [
-        { id: 'c1', closed_at: '2026-11-10T13:00:00Z', amount_pyg: 150000, patients: { full_name: 'Ana' } },
-        { id: 'c2', closed_at: '2026-11-10T14:00:00Z', amount_pyg: 0, patients: { full_name: 'Beto' } },
+        { id: 'c1', patient_id: 'p1', closed_at: '2026-11-10T13:00:00Z', amount_pyg: 150000, patients: { full_name: 'Ana' } },
+        { id: 'c2', patient_id: 'p2', closed_at: '2026-11-10T14:00:00Z', amount_pyg: 0, patients: { full_name: 'Beto' } },
       ],
       error: null,
     });
     await expect(listShiftIncomes('s1')).resolves.toEqual([
-      { consultation_id: 'c1', patient_name: 'Ana', closed_at: '2026-11-10T13:00:00Z', amount_pyg: 150000 },
-      { consultation_id: 'c2', patient_name: 'Beto', closed_at: '2026-11-10T14:00:00Z', amount_pyg: 0 },
+      { consultation_id: 'c1', patient_id: 'p1', patient_name: 'Ana', closed_at: '2026-11-10T13:00:00Z', amount_pyg: 150000 },
+      { consultation_id: 'c2', patient_id: 'p2', patient_name: 'Beto', closed_at: '2026-11-10T14:00:00Z', amount_pyg: 0 },
     ]);
     expect(calls).toContain('eq(["shift_id","s1"])');
     expect(calls).toContain('eq(["status","closed"])');

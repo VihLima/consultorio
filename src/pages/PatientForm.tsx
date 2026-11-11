@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEve
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Layout from '../components/Layout';
+import Icon from '../components/Icon';
 import ConsultationHistory from '../components/ConsultationHistory';
 import FileUploader from '../components/FileUploader';
 import {
@@ -45,7 +46,7 @@ interface FieldErrors {
 }
 
 function hasContent(draft: Draft): boolean {
-  return [draft.full_name, draft.birth_date, draft.cedula, draft.clinical_history, draft.amount].some(
+  return [draft.full_name, draft.birth_date, draft.cedula, draft.notes, draft.clinical_history, draft.amount].some(
     (value) => value !== undefined && value.trim() !== '',
   );
 }
@@ -96,6 +97,7 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
   const [fullName, setFullName] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [cedula, setCedula] = useState('');
+  const [notes, setNotes] = useState('');
   const [history, setHistory] = useState('');
   const [amount, setAmount] = useState('');
 
@@ -114,10 +116,15 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
   // Latest values for async flows that outlive a render (uploads, saves, page hide).
   const patientRef = useRef<Patient | null>(null);
   const consultationRef = useRef<Consultation | null>(null);
-  const valuesRef = useRef({ fullName, birthDate, cedula, history, amount });
-  valuesRef.current = { fullName, birthDate, cedula, history, amount };
-  const inputRef = useRef<PatientInput>({ full_name: '', birth_date: null, cedula: null });
-  inputRef.current = { full_name: fullName, birth_date: birthDate || null, cedula: cedula || null };
+  const valuesRef = useRef({ fullName, birthDate, cedula, notes, history, amount });
+  valuesRef.current = { fullName, birthDate, cedula, notes, history, amount };
+  const inputRef = useRef<PatientInput>({ full_name: '', birth_date: null, cedula: null, notes: null });
+  inputRef.current = {
+    full_name: fullName,
+    birth_date: birthDate || null,
+    cedula: cedula || null,
+    notes: notes || null,
+  };
   /** This form was opened on /paciente/novo (its local draft lives under `draft:new` until a consultation exists). */
   const startedNew = useRef(!id);
   /** The consultation text the server has, as far as this form knows (the draft's `base`). */
@@ -164,6 +171,7 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
         full_name: values.fullName,
         birth_date: values.birthDate,
         cedula: values.cedula,
+        notes: values.notes,
       };
       draftStore.save(NEW_DRAFT, draft);
     }
@@ -225,6 +233,7 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
         setFullName(loadedPatient.full_name);
         setBirthDate(loadedPatient.birth_date ?? '');
         setCedula(loadedPatient.cedula ?? '');
+        setNotes(loadedPatient.notes ?? '');
         if (open) {
           serverText.current = open.clinical_history;
           const picked = pickDraft(open.clinical_history, draftStore.load(open.id));
@@ -248,7 +257,7 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
     cancelDraftTimer();
     draftTimer.current = setTimeout(writeLocalDraft, 500);
     return cancelDraftTimer;
-  }, [history, amount, fullName, birthDate, cedula, writeLocalDraft]);
+  }, [history, amount, fullName, birthDate, cedula, notes, writeLocalDraft]);
 
   // Final flush when the page is hidden or closed, and when the form unmounts
   // (e.g. the browser's back button) — the debounce must not lose the last edit.
@@ -618,6 +627,7 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
     setFullName(pendingNewDraft.full_name ?? '');
     setBirthDate(pendingNewDraft.birth_date ?? '');
     setCedula(pendingNewDraft.cedula ?? '');
+    setNotes(pendingNewDraft.notes ?? '');
     setHistory(pendingNewDraft.clinical_history);
     setAmount(pendingNewDraft.amount);
     setPendingNewDraft(null);
@@ -684,7 +694,7 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
 
   return (
     <Layout title={title} onBack={() => void goBack.run()} backDisabled={busy || uploading}>
-      <form className="stack" onSubmit={handleSubmit} noValidate>
+      <form className="stack patient-form" onSubmit={handleSubmit} noValidate>
         {draftRestored && (
           <p className="alert" role="status">
             {t('patient.draftRestored')}
@@ -692,6 +702,7 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
         )}
 
         <section className="card">
+          <div className="form-section-title"><span><Icon name="patients" /></span><div><h2>{t('design.identity')}</h2><p>{t('design.identityHint')}</p></div></div>
           <div className="field">
             <label htmlFor="full_name">{t('patient.fullName')}</label>
             <input
@@ -738,6 +749,20 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
             />
           </div>
 
+          <div className="field">
+            <label htmlFor="notes">
+              {t('patient.notes')} <span className="muted">{t('common.optional')}</span>
+            </label>
+            <textarea
+              id="notes"
+              className="notes-input"
+              rows={3}
+              placeholder={t('patient.notesPlaceholder')}
+              value={notes}
+              onChange={(e) => edit(setNotes)(e.target.value)}
+            />
+          </div>
+
           {duplicate && (
             <div className="alert stack" role="alert">
               <p>{t('patient.duplicate', { name: duplicate.full_name })}</p>
@@ -755,6 +780,7 @@ function PatientForm({ onCreated }: { onCreated: (patientId: string) => void }) 
 
         {showConsultation ? (
           <section className="card">
+            <div className="form-section-title"><span><Icon name="file" /></span><div><h2>{t('design.clinical')}</h2><p>{t('design.clinicalHint')}</p></div></div>
             <div className="field">
               <label htmlFor="clinical_history">{t('patient.clinicalHistory')}</label>
               <textarea

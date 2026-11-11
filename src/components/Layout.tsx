@@ -1,64 +1,62 @@
-import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, type ReactNode } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../auth/AuthProvider';
 import LanguageSwitcher from './LanguageSwitcher';
+import Icon, { type IconName } from './Icon';
 
 interface LayoutProps {
-  /** Page heading, already translated. */
   title?: string;
-  /** Route the back button goes to; no back button when omitted. */
   back?: string;
-  /** Back button that runs an action (e.g. save a draft) instead of a plain link. */
   onBack?: () => void;
-  /** Disables the `onBack` button (e.g. while the page is saving). */
   backDisabled?: boolean;
   children?: ReactNode;
 }
 
 export default function Layout({ title, back, onBack, backDisabled, children }: LayoutProps) {
-  const { t } = useTranslation();
-  const backContent = (
-    <>
-      <span aria-hidden="true">←</span>
-      <span className="app-header__back-label">{t('common.back')}</span>
-    </>
-  );
-
-  return (
-    <>
-      <header className="app-header">
-        <div className="container app-header__inner">
-          {onBack ? (
-            <button
-              type="button"
-              className="btn app-header__back"
-              disabled={backDisabled}
-              onClick={onBack}
-            >
-              {backContent}
-            </button>
-          ) : (
-            back && (
-              <Link to={back} className="btn app-header__back">
-                {backContent}
-              </Link>
-            )
-          )}
-          <img
-            className="app-header__logo"
-            src="/logo.webp"
-            alt={t('common.logoAlt')}
-            width={1600}
-            height={800}
-          />
-          <span className="app-header__spacer" />
-          <LanguageSwitcher />
-        </div>
-      </header>
-      <main className="container app-main">
-        {title && <h1 className="page-title">{title}</h1>}
+  const { t, i18n } = useTranslation();
+  const { session, signOut } = useAuth();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const [leaving, setLeaving] = useState(false);
+  const [logoutError, setLogoutError] = useState(false);
+  const date = new Intl.DateTimeFormat(i18n.language, { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
+  const navigation: { to: string; icon: IconName; label: string; active: boolean }[] = [
+    { to: '/inicio', icon: 'overview', label: t('design.overview'), active: pathname === '/inicio' },
+    { to: '/pacientes', icon: 'patients', label: t('home.patients'), active: pathname.startsWith('/pacient') },
+    { to: '/financas', icon: 'wallet', label: t('home.finances'), active: pathname === '/financas' || pathname.startsWith('/turnos') },
+  ];
+  async function logout() {
+    setLeaving(true);
+    setLogoutError(false);
+    try { await signOut(); navigate('/', { replace: true }); }
+    catch { setLogoutError(true); setLeaving(false); }
+  }
+  return <div className={session ? 'app-shell' : 'public-shell'}>
+    <a className="skip-link" href="#main-content">{t('design.skip')}</a>
+    {session && <aside className="sidebar">
+      <div className="sidebar-brand"><img src="/logo.webp" alt={t('common.logoAlt')} width="1600" height="800" /></div>
+      <div className="sidebar-caption">{t('design.workspace')}</div>
+      <nav className="sidebar-nav" aria-label={t('design.navigation')}>
+        {navigation.map(item => onBack ? <button key={item.to} className={`nav-item ${item.active ? 'active' : ''}`} type="button" disabled={backDisabled || item.to !== '/inicio'} onClick={onBack} title={t('design.saveFirst')}><Icon name={item.icon} /><span>{item.label}</span></button> : <NavLink key={item.to} to={item.to} aria-current={item.active ? 'page' : undefined} className={`nav-item ${item.active ? 'active' : ''}`}><Icon name={item.icon} /><span>{item.label}</span>{item.active && <span className="nav-dot" />}</NavLink>)}
+      </nav>
+      <div className="sidebar-account"><span className="avatar avatar-brand">{(session.user.email?.[0] || 'I').toUpperCase()}</span><div><strong>{t('design.team')}</strong><span title={session.user.email}>{session.user.email}</span></div></div>
+      <button className="nav-item logout" disabled={leaving || !!onBack} onClick={() => void logout()}><Icon name="logout" />{t('home.logout')}</button>
+      {logoutError && <p className="field-error" role="alert">{t('errors.generic')}</p>}
+    </aside>}
+    <div className="app-body">
+      <header className="app-header"><div className="app-header__inner">
+        {session ? <div className="breadcrumb">{t('design.workspace')}<span>/</span><strong>{pathname === '/inicio' ? t('design.overview') : title}</strong></div> : <Link to="/" className="public-brand"><img src="/logo.webp" alt={t('common.logoAlt')} width="1600" height="800" /></Link>}
+        <span className="app-header__spacer" />
+        <span className="header-date"><Icon name="calendar" size={17} />{date}</span>
+        <LanguageSwitcher />
+      </div></header>
+      <main id="main-content" className="container app-main">
+        {(onBack || back) && <div className="page-back">{onBack ? <button type="button" className="back-link" disabled={backDisabled} onClick={onBack}><Icon name="back" size={17} />{t('common.back')}</button> : <Link className="back-link" to={back!}><Icon name="back" size={17} />{t('common.back')}</Link>}</div>}
+        {title && <div className="page-heading"><div><span className="eyebrow">{t('design.workspace')}</span><h1 className="page-title">{title}</h1></div>{pathname === '/pacientes' && <Link to="/paciente/novo" className="btn btn-primary"><Icon name="plus" />{t('patient.newTitle')}</Link>}</div>}
         {children}
       </main>
-    </>
-  );
+      <footer className="app-footer"><span>{t('common.appName')}</span><span>{t('design.footer')}</span></footer>
+    </div>
+  </div>;
 }

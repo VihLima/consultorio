@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Layout from '../components/Layout';
+import Icon from '../components/Icon';
 import StatusBadge from '../components/StatusBadge';
 import { reactivatePatient } from '../data/consultations';
 import {
@@ -112,17 +113,17 @@ export default function Patients() {
   return (
     <Layout title={t('patients.title')} back="/inicio">
       <div className="stack">
-        <div className="field">
+        <div className="search-card"><p>{t('design.patientsHint')}</p><div className="field">
           <label htmlFor="patient-search">{t('patients.searchLabel')}</label>
-          <input
+          <div className="search-input"><Icon name="search" /><input
             id="patient-search"
             type="search"
             autoComplete="off"
             placeholder={t('patients.searchPlaceholder')}
             value={text}
             onChange={(e) => setText(e.target.value)}
-          />
-        </div>
+          /></div>
+        </div></div>
 
         {needsShift && (
           <div className="alert stack" role="alert">
@@ -167,8 +168,8 @@ export default function Patients() {
               {results.map((patient) => (
                 <li key={patient.id} className="list-row">
                   <Link to={`/paciente/${patient.id}`} className="list-link">
-                    <span className="list-link__main">
-                      {patient.full_name}
+                    <span className="avatar" aria-hidden="true">{patient.full_name.split(/\s+/).filter(Boolean).slice(0, 2).map(n => n[0]).join('')}</span><span className="list-link__main">
+                      <strong>{patient.full_name}</strong>
                       <PatientDetails patient={patient} />
                     </span>
                     <StatusBadge status={patient.status} />
@@ -186,8 +187,8 @@ export default function Patients() {
               {archived.map((patient) => (
                 <li key={patient.id} className="list-row">
                   <Link to={`/paciente/${patient.id}`} className="list-link">
-                    <span className="list-link__main">
-                      {patient.full_name}
+                    <span className="avatar" aria-hidden="true">{patient.full_name.split(/\s+/).filter(Boolean).slice(0, 2).map(n => n[0]).join('')}</span><span className="list-link__main">
+                      <strong>{patient.full_name}</strong>
                       <PatientDetails patient={patient} />
                     </span>
                   </Link>

@@ -12,7 +12,7 @@ const {
   searchPatients,
 } = await import('./patients');
 
-const PATIENT = { id: 'p1', full_name: 'Ana', birth_date: null, cedula: '1.234.567' };
+const PATIENT = { id: 'p1', full_name: 'Ana', birth_date: null, cedula: '1.234.567', notes: null };
 
 beforeEach(resetFake);
 
@@ -38,15 +38,25 @@ describe('findPatientByCedula', () => {
 describe('createPatient', () => {
   it('trims the name and stores empty cédula as null', async () => {
     responses.push({ data: PATIENT, error: null });
-    await createPatient({ full_name: '  Ana ', birth_date: null, cedula: '  ' });
-    expect(calls).toContain('insert([{"full_name":"Ana","birth_date":null,"cedula":null}])');
+    await createPatient({ full_name: '  Ana ', birth_date: null, cedula: '  ', notes: '  ' });
+    expect(calls).toContain('insert([{"full_name":"Ana","birth_date":null,"cedula":null,"notes":null}])');
   });
 
   it('stores the name in NFC, so combining accents fold like precomposed ones', async () => {
     responses.push({ data: PATIENT, error: null });
-    await createPatient({ full_name: ' Mari\u0301a ', birth_date: null, cedula: null });
+    await createPatient({ full_name: ' Mari\u0301a ', birth_date: null, cedula: null, notes: null });
     // 'i' + U+0301 (combining acute) becomes the single character U+00ED.
-    expect(calls).toContain('insert([{"full_name":"Mar\u00eda","birth_date":null,"cedula":null}])');
+    expect(calls).toContain(
+      'insert([{"full_name":"Mar\u00eda","birth_date":null,"cedula":null,"notes":null}])',
+    );
+  });
+
+  it('trims the notes', async () => {
+    responses.push({ data: PATIENT, error: null });
+    await createPatient({ full_name: 'Ana', birth_date: null, cedula: null, notes: ' Alergia a penicilina\n' });
+    expect(calls).toContain(
+      'insert([{"full_name":"Ana","birth_date":null,"cedula":null,"notes":"Alergia a penicilina"}])',
+    );
   });
 });
 
