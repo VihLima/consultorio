@@ -3,3 +3,5 @@ dist
 .env.local
 .env
 .superpowers
+# cópias de segurança: dados de pacientes, nunca no git
+backups

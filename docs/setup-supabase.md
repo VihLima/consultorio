@@ -177,6 +177,24 @@ inclui **backups diários** (restauráveis em **Database** → **Backups**) e o
 projeto **não é pausado**. Mesmo assim, uma cópia própria de vez em quando
 (opção B) não faz mal.
 
+### Cópia com um comando (`npm run backup`)
+
+Quem mantém o sistema pode copiar tudo de uma vez, no computador onde está o
+projeto:
+
+1. Uma única vez: em **Project Settings** → **API Keys**, copie a chave
+   **secret** (`sb_secret_...`; nos painéis antigos, **service_role**) e
+   adicione ao `.env.local` a linha `SUPABASE_SECRET_KEY=...`. **Sem** o
+   prefixo `VITE_`: essa chave lê tudo e não pode ir para o site nem para o git.
+2. Rode `npm run backup`.
+
+O comando cria `backups/AAAA-MM-DD_HHMM/` com as sete tabelas em JSON, a lista
+de usuários, todos os arquivos dos pacientes e um `manifesto.json` com as
+contagens. Se algo falhar, o comando termina com erro e a pasta fica com um
+arquivo `BACKUP-INCOMPLETO.txt`: não confie nessa cópia. A pasta `backups` está fora do git; são dados de pacientes,
+guarde uma cópia também fora deste computador. Rodar toda semana também evita
+a pausa do projeto.
+
 ### Opção B — Rotina de cópia manual (plano gratuito)
 
 Faça **pelo menos uma vez por semana** (o uso semanal também evita a pausa) e
