@@ -11,8 +11,20 @@ import {
   listAppointments,
 } from '../data/appointments';
 import { createPatient, searchPatients, type PatientWithStatus } from '../data/patients';
-import { buildAgenda, byDay, monthGrid, shiftMonth, type AgendaEntry, type AgendaKind } from '../lib/agenda';
+import {
+  SERVICES,
+  buildAgenda,
+  byDay,
+  monthGrid,
+  shiftMonth,
+  upcomingAppointments,
+  type AgendaEntry,
+  type AgendaKind,
+  type Appointment,
+  type AppointmentService,
+} from '../lib/agenda';
 import { addDays, formatTime, localDayKey, zonedIso } from '../lib/dates';
+import { buildIcs, openIcs } from '../lib/ics';
 import { whatsappUrl } from '../lib/phone';
 import { useSubmitOnce } from '../lib/useSubmitOnce';
 
@@ -21,6 +33,12 @@ type LoadState = 'loading' | 'ready' | 'error';
 const KINDS: AgendaKind[] = ['scheduled', 'inProgress', 'done', 'missed', 'cancelled'];
 /** Marks shown inside a day cell before "+N". */
 const CELL_LIMIT = 3;
+/** How far ahead the "upcoming" list looks. */
+const UPCOMING_DAYS = 90;
+/** Reminder on the phone's calendar, minutes before the appointment. */
+const PHONE_ALARM_MINUTES = 60;
+/** Length of the event on the phone's calendar, by service. */
+const SERVICE_MINUTES: Record<AppointmentService, number> = { consulta: 30, ecografia: 30, cirugia: 120, otro: 30 };
 
 /** First letter uppercase only ("noviembre de 2026" → "Noviembre de 2026"). */
 function capitalize(text: string): string {
@@ -36,8 +54,10 @@ export default function Agenda() {
   const [month, setMonth] = useState(() => `${todayKey().slice(0, 7)}-01`);
   const [selected, setSelected] = useState(todayKey);
   const [entries, setEntries] = useState<AgendaEntry[]>([]);
+  const [upcoming, setUpcoming] = useState<Appointment[]>([]);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [formOpen, setFormOpen] = useState(false);
+  const [justSaved, setJustSaved] = useState<Appointment | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const weeks = useMemo(() => monthGrid(month), [month]);
@@ -48,13 +68,17 @@ export default function Agenda() {
       setLoadState('loading');
       const from = zonedIso(weeks[0][0], '00:00');
       const to = zonedIso(addDays(weeks[weeks.length - 1][6], 1), '00:00');
+      const nowIso = new Date().toISOString();
+      const until = zonedIso(addDays(todayKey(), UPCOMING_DAYS), '00:00');
       try {
-        const [consultations, appointments] = await Promise.all([
+        const [consultations, appointments, next] = await Promise.all([
           listAgendaConsultations(from, to),
           listAppointments(from, to),
+          listAppointments(nowIso, until),
         ]);
         if (!isCurrent()) return;
-        setEntries(buildAgenda(consultations, appointments, new Date().toISOString()));
+        setEntries(buildAgenda(consultations, appointments, nowIso));
+        setUpcoming(upcomingAppointments(next, nowIso));
         setLoadState('ready');
       } catch {
         if (isCurrent()) setLoadState('error');
@@ -86,6 +110,38 @@ export default function Agenda() {
     month: 'long',
     timeZone: 'UTC',
   }).format(new Date(`${selected}T12:00:00Z`)));
+
+  /** "aaaa-mm-dd" → "Hoy" or "jue. 12/11". */
+  function dayLabel(day: string): string {
+    if (day === today) return t('agenda.today');
+    const weekday = new Intl.DateTimeFormat(i18n.language, { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${day}T12:00:00Z`));
+    return `${weekday} ${day.slice(8)}/${day.slice(5, 7)}`;
+  }
+
+  /** Sends a scheduled appointment to the phone's calendar, with a reminder. */
+  function addToPhone(a: Pick<Appointment, 'id' | 'scheduled_at' | 'service' | 'note' | 'patient_name' | 'patient_phone'>) {
+    const details = [a.note, a.patient_phone].filter(Boolean).join(' · ');
+    const ics = buildIcs({
+      uid: `${a.id}@consultorio`,
+      startIso: a.scheduled_at,
+      durationMinutes: SERVICE_MINUTES[a.service],
+      title: `${t(`agenda.services.${a.service}`)} · ${a.patient_name}`,
+      description: details || null,
+      alarmMinutes: PHONE_ALARM_MINUTES,
+    });
+    openIcs(ics, `${localDayKey(a.scheduled_at)}-${formatTime(a.scheduled_at).replace(':', '')}.ics`);
+  }
+
+  function addEntryToPhone(entry: AgendaEntry) {
+    addToPhone({
+      id: entry.appointment_id!,
+      scheduled_at: entry.at,
+      service: entry.service ?? 'consulta',
+      note: entry.note,
+      patient_name: entry.patient_name,
+      patient_phone: entry.patient_phone,
+    });
+  }
 
   function goMonth(delta: number) {
     const next = shiftMonth(month, delta);
@@ -207,7 +263,7 @@ export default function Agenda() {
               <h2 id="agenda-day-title" className="agenda-day-title">{selectedTitle}</h2>
             </div>
             {!formOpen && (
-              <button type="button" className="btn btn-primary" onClick={() => setFormOpen(true)}>
+              <button type="button" className="btn btn-primary" onClick={() => { setJustSaved(null); setFormOpen(true); }}>
                 <Icon name="plus" size={18} />
                 {t('agenda.new')}
               </button>
@@ -218,12 +274,26 @@ export default function Agenda() {
             <AppointmentForm
               day={selected}
               onCancel={() => setFormOpen(false)}
-              onSaved={async (day) => {
+              onSaved={async (saved) => {
                 setFormOpen(false);
-                pickDay(day);
+                setJustSaved(saved);
+                pickDay(localDayKey(saved.scheduled_at));
                 await load();
               }}
             />
+          )}
+
+          {justSaved && (
+            <div className="alert agenda-saved stack" role="status">
+              <p>{t('agenda.addToPhoneHint')}</p>
+              <div className="row-actions">
+                <button type="button" className="btn btn-primary btn-small" onClick={() => addToPhone(justSaved)}>
+                  <Icon name="calendar" size={16} />
+                  {t('agenda.addToPhone')}
+                </button>
+                <button type="button" className="btn btn-small" onClick={() => setJustSaved(null)}>{t('common.close')}</button>
+              </div>
+            </div>
           )}
 
           {actionError && <p className="alert alert-danger" role="alert">{t(actionError)}</p>}
@@ -241,7 +311,10 @@ export default function Agenda() {
                     <span className="agenda-item__time">{formatTime(entry.at)}</span>
                     <div className="agenda-item__body">
                       <Link to={`/paciente/${entry.patient_id}`} className="agenda-item__name">{entry.patient_name}</Link>
-                      <span className={`agenda-badge kind-${entry.kind}`}>{t(`agenda.kinds.${entry.kind}`)}</span>
+                      <span className="agenda-item__tags">
+                        {entry.service && <span className="agenda-service">{t(`agenda.services.${entry.service}`)}</span>}
+                        <span className={`agenda-badge kind-${entry.kind}`}>{t(`agenda.kinds.${entry.kind}`)}</span>
+                      </span>
                       {entry.note && <p className="agenda-item__note">{entry.note}</p>}
                       {entry.appointment_id && (
                         <div className="row-actions">
@@ -250,6 +323,12 @@ export default function Agenda() {
                               <Icon name="chat" size={16} />
                               WhatsApp
                             </a>
+                          )}
+                          {entry.kind === 'scheduled' && (
+                            <button type="button" className="btn btn-small" onClick={() => addEntryToPhone(entry)}>
+                              <Icon name="calendar" size={16} />
+                              {t('agenda.addToPhone')}
+                            </button>
                           )}
                           {entry.kind === 'scheduled' && (
                             <button
@@ -280,6 +359,41 @@ export default function Agenda() {
             </ul>
           )}
         </section>
+
+        <section className="card agenda-upcoming stack" aria-labelledby="agenda-upcoming-title">
+          <div>
+            <h2 id="agenda-upcoming-title" className="agenda-day-title">{t('agenda.upcoming')}</h2>
+            <p className="muted agenda-upcoming__hint">{t('agenda.upcomingHint')}</p>
+          </div>
+          {loadState === 'loading' ? (
+            <p className="loading-line" role="status"><span className="spinner" />{t('common.loading')}</p>
+          ) : upcoming.length === 0 ? (
+            <p className="empty">{t('agenda.upcomingEmpty')}</p>
+          ) : (
+            <ol className="agenda-upcoming__list">
+              {upcoming.map((a) => {
+                const day = localDayKey(a.scheduled_at);
+                return (
+                  <li key={a.id}>
+                    <button type="button" className="agenda-upcoming__row" onClick={() => pickDay(day)}>
+                      <span className="agenda-upcoming__when">
+                        <span className="agenda-upcoming__day">{dayLabel(day)}</span>
+                        <span className="agenda-upcoming__time">{formatTime(a.scheduled_at)}</span>
+                      </span>
+                      <span className="agenda-upcoming__who">
+                        <strong>{a.patient_name}</strong>
+                        <span className="muted">
+                          {t(`agenda.services.${a.service}`)}
+                          {a.note ? ` · ${a.note}` : ''}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </section>
       </div>
     </Layout>
   );
@@ -288,7 +402,7 @@ export default function Agenda() {
 interface AppointmentFormProps {
   day: string;
   onCancel: () => void;
-  onSaved: (day: string) => void | Promise<void>;
+  onSaved: (appointment: Appointment) => void | Promise<void>;
 }
 
 /** New appointment: an existing patient (search) or a new one by name, a date, a time and a note. */
@@ -300,6 +414,7 @@ function AppointmentForm({ day, onCancel, onSaved }: AppointmentFormProps) {
   const [newPhone, setNewPhone] = useState('');
   const [date, setDate] = useState(day);
   const [time, setTime] = useState('09:00');
+  const [service, setService] = useState<AppointmentService>('consulta');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -346,8 +461,8 @@ function AppointmentForm({ day, onCancel, onSaved }: AppointmentFormProps) {
         });
         patientId = created.id;
       }
-      await createAppointment(patientId, zonedIso(date, time), note);
-      await onSaved(date);
+      const saved = await createAppointment(patientId, zonedIso(date, time), service, note);
+      await onSaved(saved);
     } catch {
       setError('errors.saveFailed');
     }
@@ -418,6 +533,25 @@ function AppointmentForm({ day, onCancel, onSaved }: AppointmentFormProps) {
           <input id="appt-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
         </div>
       </div>
+
+      <fieldset className="field agenda-services">
+        <legend>{t('agenda.service')}</legend>
+        <div className="agenda-services__options">
+          {SERVICES.map((option) => (
+            <label key={option} className={`agenda-service-option ${service === option ? 'is-active' : ''}`}>
+              <input
+                type="radio"
+                name="appt-service"
+                value={option}
+                checked={service === option}
+                onChange={() => setService(option)}
+              />
+              {t(`agenda.services.${option}`)}
+            </label>
+          ))}
+        </div>
+        {service === 'otro' && <p className="muted agenda-services__hint">{t('agenda.otherNoteHint')}</p>}
+      </fieldset>
 
       <div className="field">
         <label htmlFor="appt-note">

@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
-import type { Appointment, AgendaConsultation } from '../lib/agenda';
+import type { Appointment, AgendaConsultation, AppointmentService } from '../lib/agenda';
 
-const COLUMNS = 'id, patient_id, scheduled_at, note, cancelled_at, patients (full_name, phone)';
+const COLUMNS = 'id, patient_id, scheduled_at, service, note, cancelled_at, patients (full_name, phone)';
 
 type AppointmentRow = Omit<Appointment, 'patient_name' | 'patient_phone'> & {
   patients: { full_name: string; phone: string | null };
@@ -26,11 +26,12 @@ export async function listAppointments(fromIso: string, toIso: string): Promise<
 export async function createAppointment(
   patientId: string,
   scheduledAtIso: string,
+  service: AppointmentService,
   note: string,
 ): Promise<Appointment> {
   const { data, error } = await supabase
     .from('appointments')
-    .insert({ patient_id: patientId, scheduled_at: scheduledAtIso, note: note.trim() || null })
+    .insert({ patient_id: patientId, scheduled_at: scheduledAtIso, service, note: note.trim() || null })
     .select(COLUMNS)
     .single();
   if (error) throw error;

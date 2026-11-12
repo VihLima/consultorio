@@ -1,11 +1,16 @@
 import { addDays, localDayKey, weekdayIndex } from './dates';
 
+/** What an appointment is for; `otro` is described in the note. */
+export type AppointmentService = 'consulta' | 'ecografia' | 'cirugia' | 'otro';
+export const SERVICES: AppointmentService[] = ['consulta', 'ecografia', 'cirugia', 'otro'];
+
 export interface Appointment {
   id: string;
   patient_id: string;
   patient_name: string;
   patient_phone: string | null;
   scheduled_at: string;
+  service: AppointmentService;
   note: string | null;
   cancelled_at: string | null;
 }
@@ -39,6 +44,8 @@ export interface AgendaEntry {
   patient_name: string;
   patient_phone: string | null;
   note: string | null;
+  /** Set for appointments only. */
+  service: AppointmentService | null;
   appointment_id: string | null;
 }
 
@@ -69,6 +76,7 @@ export function buildAgenda(
       patient_name: c.patient_name,
       patient_phone: null,
       note: null,
+      service: null,
       appointment_id: null,
     });
   }
@@ -89,6 +97,7 @@ export function buildAgenda(
       patient_name: a.patient_name,
       patient_phone: a.patient_phone,
       note: a.note,
+      service: a.service,
       appointment_id: a.id,
     });
   }
@@ -134,4 +143,14 @@ export function shiftMonth(ymd: string, delta: number): string {
   const y = Math.floor(index / 12);
   const m = (index % 12) + 1;
   return `${y}-${String(m).padStart(2, '0')}-01`;
+}
+
+/**
+ * Appointments still to come (not cancelled, from `nowIso` on), soonest first:
+ * the running list of what is booked next.
+ */
+export function upcomingAppointments(appointments: Appointment[], nowIso: string): Appointment[] {
+  return appointments
+    .filter((a) => !a.cancelled_at && a.scheduled_at >= nowIso)
+    .sort((x, y) => (x.scheduled_at < y.scheduled_at ? -1 : x.scheduled_at > y.scheduled_at ? 1 : 0));
 }

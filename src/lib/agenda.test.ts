@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAgenda, byDay, monthGrid, shiftMonth, type Appointment, type AgendaConsultation } from './agenda';
+import { buildAgenda, byDay, upcomingAppointments, monthGrid, shiftMonth, type Appointment, type AgendaConsultation } from './agenda';
 import { zonedIso } from './dates';
 
 const NOW = zonedIso('2026-11-11', '12:00');
@@ -23,6 +23,7 @@ function appointment(partial: Partial<Appointment>): Appointment {
     patient_name: 'Beto',
     patient_phone: null,
     scheduled_at: zonedIso('2026-11-12', '10:00'),
+    service: 'consulta',
     note: null,
     cancelled_at: null,
     ...partial,
@@ -97,5 +98,28 @@ describe('shiftMonth', () => {
   it('moves across years', () => {
     expect(shiftMonth('2026-12-20', 1)).toBe('2027-01-01');
     expect(shiftMonth('2026-01-05', -1)).toBe('2025-12-01');
+  });
+});
+
+describe('upcomingAppointments', () => {
+  it('keeps future, not cancelled appointments, soonest first', () => {
+    const list = upcomingAppointments(
+      [
+        appointment({ id: 'late', scheduled_at: zonedIso('2026-11-20', '08:00') }),
+        appointment({ id: 'past', scheduled_at: zonedIso('2026-11-11', '07:30') }),
+        appointment({ id: 'soon', scheduled_at: zonedIso('2026-11-12', '07:30'), service: 'ecografia' }),
+        appointment({ id: 'gone', scheduled_at: zonedIso('2026-11-13', '09:00'), cancelled_at: NOW }),
+      ],
+      NOW,
+    );
+    expect(list.map((a) => a.id)).toEqual(['soon', 'late']);
+  });
+});
+
+describe('buildAgenda service', () => {
+  it('carries the service of appointments and none for consultations', () => {
+    const entries = buildAgenda([consultation({})], [appointment({ service: 'cirugia' })], NOW);
+    expect(entries.find((e) => e.key === 'a:a1')?.service).toBe('cirugia');
+    expect(entries.find((e) => e.key === 'c:c1')?.service).toBeNull();
   });
 });

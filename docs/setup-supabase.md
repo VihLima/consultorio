@@ -14,8 +14,10 @@ Consultório Dra. Iachel. Faça uma única vez, antes do primeiro uso.
 
 1. No menu lateral, abra **SQL Editor** → **New query**.
 2. Cole todo o conteúdo de `supabase/migrations/0001_init.sql` e clique em **Run**.
-   Depois, numa nova query, faça o mesmo com `supabase/migrations/0002_patient_notes.sql` e depois `0003_patient_phone.sql`
-   (adiciona o campo de observações do paciente; quem já tinha rodado a 0001 só precisa rodar esta).
+   Depois, uma por vez e cada uma numa nova query, faça o mesmo com as outras, em ordem:
+   `0002_patient_notes.sql`, `0003_patient_phone.sql`, `0004_payments.sql`,
+   `0005_appointments.sql` e `0006_appointment_service.sql` (tipo do agendamento).
+   Quem já rodou as anteriores só precisa rodar as que faltam; rodar de novo não estraga nada.
    O SQL Editor pode pedir para confirmar uma "destructive operation" (o script
    tem comandos `drop policy`, que recriam as regras de segurança): é esperado,
    confirme.
